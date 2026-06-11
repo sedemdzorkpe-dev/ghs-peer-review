@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'superadmin' || root.child('users').child(auth.uid).child('role').val() == 'supervisor')",
+        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'superadmin' || root.child('users').child(auth.uid).child('role').val() == 'supervisor')"
+      }
+    },
+    "facilities": {
+      ".read": "auth != null",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'superadmin' || root.child('users').child(auth.uid).child('role').val() == 'supervisor')",
+      "$facilityId": {
+        "scores": {
+          "$moduleKey": {
+            ".write": "auth != null"
+          }
+        }
+      }
+    }
+  }
+}
