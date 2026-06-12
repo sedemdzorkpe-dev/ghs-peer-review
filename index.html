@@ -514,14 +514,14 @@ tr:hover td { background: var(--light-gray); }
 // ║  FIREBASE CONFIGURATION — Replace with your project's   ║
 // ║  config from Firebase Console → Project Settings        ║
 // ╚══════════════════════════════════════════════════════════╝
-const firebaseConfig = {
-  apiKey: "AIzaSyCIKnns3s7T_vRptdhM0lXTx5QOB5btys0",
-  authDomain: "ghs-peerreview-ga-2026.firebaseapp.com",
-  databaseURL: "https://ghs-peerreview-ga-2026-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "ghs-peerreview-ga-2026",
-  storageBucket: "ghs-peerreview-ga-2026.firebasestorage.app",
-  messagingSenderId: "523675266337",
-  appId: "1:523675266337:web:e63112a435225aff996260"
+const FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -964,31 +964,7 @@ function buildSuperAdmin() {
   setupLiveListeners();
 }
 
-function buildSAOverview() {
-  const p = getPage('sa-overview');
-  p.innerHTML = `
-    <div id="sa-kpis" class="kpi-grid"></div>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-header"><span class="card-title">📊 Module Score Breakdown</span></div>
-        <div id="sa-modchart" class="chart-bar-wrap"></div>
-      </div>
-      <div class="card">
-        <div class="card-header"><span class="card-title">🏥 Facility Status</span>
-          <span class="live-badge"><span class="live-pulse"></span>LIVE</span>
-        </div>
-        <div id="sa-facstatus"></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header"><span class="card-title">📋 All Facilities – Live Scores</span></div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Facility</th><th>Location</th><th>Type</th><th>M1</th><th>M2</th><th>M3</th><th>M4</th><th>M5</th><th>M6</th><th>M7</th><th>M8</th><th>M9</th><th>Total</th><th>%</th><th>Status</th></tr></thead>
-        <tbody id="sa-alltable"></tbody>
-      </table></div>
-    </div>`;
-  refreshSAOverview();
-}
+
 
 function refreshSAOverview() {
   get(ref(db,'facilities')).then(snap=>{
@@ -1092,16 +1068,7 @@ function refreshSAOverview() {
   });
 }
 
-function buildSAFacilities() {
-  const p = getPage('sa-facilities');
-  p.innerHTML = `
-    <div class="flex-between mb-16">
-      <h2 style="color:var(--ghs-dark)">🏥 Facility Management</h2>
-      <button class="btn btn-primary" onclick="openAddFacilityModal()">+ Add Facility</button>
-    </div>
-    <div id="fac-cards" class="facility-grid"></div>`;
-  loadFacilityCards();
-}
+
 
 function loadFacilityCards() {
   get(ref(db,'facilities')).then(snap=>{
@@ -1368,47 +1335,7 @@ window.deleteUser = async function(uid) {
   toast('User removed'); loadUsersTable();
 };
 
-function buildSAReports() {
-  const p = getPage('sa-reports');
-  p.innerHTML = `
-    <div class="card">
-      <div class="card-header"><span class="card-title">📊 Summary Report – All Facilities</span></div>
-      <div id="reports-content"></div>
-    </div>`;
-  get(ref(db,'facilities')).then(snap=>{
-    const facs = snap.val()||{};
-    const container = document.getElementById('reports-content');
-    if(!container) return;
-    const data = Object.entries(facs).map(([fid,fac])=>{
-      const scores=fac.scores||{};
-      const modScores = {};
-      let total=0,max=0;
-      for(let m=1;m<=9;m++){
-        const ms=getModuleScore(scores,m);
-        modScores[m]=ms; total+=ms; max+=MODULES[m].maxScore;
-      }
-      return {name:fac.name,type:fac.type,location:fac.location,modScores,total,max,pct:max?Math.round(total/max*100):0};
-    }).sort((a,b)=>b.pct-a.pct);
-    if(!data.length){container.innerHTML='<div class="empty-state"><div class="icon">📊</div><p>No data yet</p></div>';return;}
-    container.innerHTML = `
-      <div style="overflow-x:auto"><table>
-        <thead><tr>
-          <th>Facility</th><th>Type</th><th>District</th>
-          ${Object.entries(MODULES).map(([m,d])=>`<th title="${d.name}">M${m}</th>`).join('')}
-          <th>Total</th><th>%</th><th>Performance</th>
-        </tr></thead>
-        <tbody>${data.map(d=>`<tr>
-          <td class="fw-bold">${d.name}</td>
-          <td>${d.type||'–'}</td>
-          <td>${d.location||'–'}</td>
-          ${Object.entries(MODULES).map(([m])=>{const pct=Math.round(d.modScores[m]/MODULES[m].maxScore*100);return`<td><span class="score-badge ${pct>=70?'score-high':pct>=50?'score-med':'score-low'}">${d.modScores[m].toFixed(0)}</span></td>`;}).join('')}
-          <td class="fw-bold">${d.total.toFixed(1)}</td>
-          <td><b>${d.pct}%</b></td>
-          <td>${d.pct>=70?'🟢 High':d.pct>=50?'🟡 Average':'🔴 Under-performing'}</td>
-        </tr>`).join('')}</tbody>
-      </table></div>`;
-  });
-}
+
 
 // ══════════════════════════════════════════════════════════════
 //  SUPERVISOR VIEWS
@@ -1437,77 +1364,9 @@ function buildSupervisor() {
   setupLiveListeners();
 }
 
-function buildSVDashboard() {
-  const p = getPage('sv-dashboard');
-  p.innerHTML = `
-    <div id="sv-kpis" class="kpi-grid"></div>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-header"><span class="card-title">📊 Module Progress</span>
-          <span class="live-badge"><span class="live-pulse"></span>LIVE</span></div>
-        <div id="sv-modprog"></div>
-      </div>
-      <div class="card">
-        <div class="card-header"><span class="card-title">👥 Assessor Activity</span></div>
-        <div id="sv-assact"></div>
-      </div>
-    </div>`;
-  refreshSVDashboard();
-}
 
-function refreshSVDashboard() {
-  if(!activeFacilityId) return;
-  get(ref(db,`facilities/${activeFacilityId}`)).then(snap=>{
-    const fac=snap.val()||{};
-    const scores=fac.scores||{};
-    let total=0,max=0,completed=0;
-    const modData=[];
-    for(let m=1;m<=9;m++){
-      const ms=getModuleScore(scores,m);
-      const mm=MODULES[m].maxScore;
-      const pct=Math.round(ms/mm*100);
-      total+=ms; max+=mm;
-      if(pct>0) completed++;
-      modData.push({m,ms,mm,pct,name:MODULES[m].name,icon:MODULES[m].icon});
-    }
-    const pct=max?Math.round(total/max*100):0;
 
-    const kpis=document.getElementById('sv-kpis');
-    if(kpis) kpis.innerHTML=`
-      <div class="kpi-card gold"><div class="kpi-val">${pct}%</div><div class="kpi-label">Overall Score</div></div>
-      <div class="kpi-card"><div class="kpi-val">${total.toFixed(1)}</div><div class="kpi-label">Points Obtained</div></div>
-      <div class="kpi-card blue"><div class="kpi-val">${completed}/9</div><div class="kpi-label">Modules with Data</div></div>
-      <div class="kpi-card ${pct>=70?'':'red'}"><div class="kpi-val">${max.toFixed(0)}</div><div class="kpi-label">Total Possible Points</div></div>`;
 
-    const mp=document.getElementById('sv-modprog');
-    if(mp) mp.innerHTML=modData.map(d=>`
-      <div class="flex-between" style="padding:8px 0;border-bottom:1px solid #eee">
-        <div style="flex:1">
-          <div class="fw-bold text-sm">${d.icon} M${d.m}: ${d.name}</div>
-          <div class="progress mt-8"><div class="progress-bar ${d.pct>=70?'progress-high':d.pct>=50?'progress-med':'progress-low'}" style="width:${d.pct}%"></div></div>
-        </div>
-        <div style="min-width:90px;text-align:right">
-          <span class="score-badge ${d.pct>=70?'score-high':d.pct>=50?'score-med':'score-low'}">${d.ms.toFixed(1)}/${d.mm}</span>
-        </div>
-      </div>`).join('');
-  });
-
-  get(ref(db,'users')).then(snap=>{
-    const users=snap.val()||{};
-    const aa=document.getElementById('sv-assact');
-    if(!aa) return;
-    const myAssessors=Object.entries(users).filter(([,u])=>u.facilityId===activeFacilityId&&u.role==='assessor');
-    if(!myAssessors.length){aa.innerHTML='<div class="empty-state"><div class="icon">👥</div><p>No assessors assigned yet</p></div>';return;}
-    aa.innerHTML=myAssessors.map(([uid,u])=>`
-      <div class="flex-between" style="padding:8px 0;border-bottom:1px solid #eee">
-        <div>
-          <div class="fw-bold text-sm">${u.name}</div>
-          <div class="text-muted" style="font-size:0.75rem">${u.moduleAssigned?'Module '+u.moduleAssigned+': '+MODULES[u.moduleAssigned]?.name:'No module assigned'}</div>
-        </div>
-        <span class="role-badge role-assessor">Assessor</span>
-      </div>`).join('');
-  });
-}
 
 function buildSVModules() {
   const p = getPage('sv-modules');
@@ -1722,49 +1581,7 @@ function buildAssessorForm(moduleId) {
   });
 }
 
-function renderAssessorSections(moduleId, existing) {
-  const mod = MODULES[moduleId];
-  const container = document.getElementById('as-sections');
-  if(!container) return;
 
-  container.innerHTML = mod.sections.map((sec,si)=>`
-    <div class="section-block">
-      <div class="section-title" onclick="toggleSection('sec${moduleId}_${si}')">
-        <span>${sec.title}</span>
-        <span id="arr_sec${moduleId}_${si}">▼</span>
-      </div>
-      <div class="section-body open" id="sec${moduleId}_${si}">
-        ${sec.items.map(it=>`
-          <div class="item-row" id="row_${it.no.replace(/\./g,'_')}">
-            <div><span class="item-no">${it.no}</span></div>
-            <div class="item-info">
-              <h4>${it.item}</h4>
-              <p>${it.criteria}</p>
-            </div>
-            <div class="item-scoring">
-              <div class="expected-score">Expected: <b>${it.score}</b></div>
-              <input type="number" class="score-input" 
-                id="inp_${it.no.replace(/\./g,'_')}"
-                value="${existing[it.no]??''}"
-                min="0" max="${it.score}"
-                step="0.5"
-                placeholder="0–${it.score}"
-                oninput="onScoreInput(this,'${it.no}',${it.score},${moduleId})"
-                onchange="autoSaveScore('${it.no}',${it.score},${moduleId})"/>
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>`).join('');
-
-  // Apply colours to pre-filled inputs
-  mod.sections.forEach(sec=>sec.items.forEach(it=>{
-    if(existing[it.no]!=null){
-      const inp = document.getElementById(`inp_${it.no.replace(/\./g,'_')}`);
-      if(inp){ inp.classList.add('filled'); updateSummary(moduleId); }
-    }
-  }));
-  updateSummary(moduleId);
-}
 
 window.onScoreInput = function(el, itemNo, maxScore, moduleId) {
   const v = parseFloat(el.value);
@@ -2124,7 +1941,6 @@ window.renderAssessorStatusGrid = function(containerId) {
 };
 
 // ── Enhanced Supervisor Dashboard with Assessor Grid ──
-const _origBuildSVDashboard = buildSVDashboard;
 function buildSVDashboard() {
   const p = getPage('sv-dashboard');
   p.innerHTML = `
