@@ -534,6 +534,31 @@ const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+// ══════════════════════════════════════════════════════════════
+//  AUTOMATIC USER CREATION via Identity Toolkit REST API
+//  Creates a Firebase Auth account WITHOUT signing out the admin,
+//  and returns the new user's UID for immediate profile linking.
+// ══════════════════════════════════════════════════════════════
+async function createAuthUserViaREST(email, password) {
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_CONFIG.apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true })
+    }
+  );
+  const data = await res.json();
+  if(!res.ok) {
+    const msg = data?.error?.message || 'Unknown error';
+    if(msg.includes('EMAIL_EXISTS')) throw new Error('An account with this email already exists.');
+    if(msg.includes('WEAK_PASSWORD')) throw new Error('Password must be at least 6 characters.');
+    if(msg.includes('INVALID_EMAIL')) throw new Error('Invalid email address.');
+    throw new Error(msg);
+  }
+  return data.localId; // this is the UID
+}
+
 // AUTO-GENERATED from Final_Harmonized_Peer_Review_Ass_Tool_2026_Edition_V_1_0__2_.docx
 // All 9 modules with exact items and scores as per the document
 
@@ -1319,14 +1344,24 @@ window.createUser = async function() {
   const moduleAssigned=document.getElementById('uModule')?.value;
   const facilityId=document.getElementById('uFacility').value;
   if(!name||!email||!pass){ toast('All fields required','error'); return; }
+  if(pass.length < 6){ document.getElementById('createUserErr').textContent='Password must be at least 6 characters.'; return; }
+  const btn = document.querySelector('#modalContent .btn-primary');
+  if(btn){ btn.disabled=true; btn.textContent='Creating account...'; }
   try {
-    // Create via REST — note this requires client SDK limitation
-    // We'll store a pending user record and admin uses Firebase Console to create auth
-    const uid = 'pending_'+Date.now();
-    await set(ref(db,`users/${uid}`), {name,email,role,moduleAssigned:moduleAssigned||null,facilityId:facilityId||null,createdAt:Date.now(),status:'pending'});
-    toast(`ℹ️ User profile saved. To activate: Go to Firebase Console → Authentication → Add user manually with email: ${email} and password: ${pass}, then update the UID in the database.`,'warning');
+    const uid = await createAuthUserViaREST(email, pass);
+    await set(ref(db,`users/${uid}`), {
+      name, email, role,
+      moduleAssigned: role==='assessor' ? (moduleAssigned||null) : null,
+      facilityId: facilityId||null,
+      createdAt: Date.now()
+    });
+    toast(`✅ ${name}'s account created and ready to use! They can log in immediately with ${email}.`);
     closeModal(); loadUsersTable();
-  } catch(e){ document.getElementById('createUserErr').textContent=e.message; }
+  } catch(e){
+    document.getElementById('createUserErr').textContent = e.message;
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='🔐 Create Account'; }
+  }
 };
 
 window.deleteUser = async function(uid) {
@@ -1454,36 +1489,54 @@ window.openSVCreateUser = function() {
       <span class="modal-title">➕ Add Assessor / Supervisor</span>
       <span class="modal-close" onclick="closeModal()">✕</span>
     </div>
-    <p class="text-muted text-sm mb-16">Creates a user profile for this facility. Then create their authentication account in Firebase Console with the same email.</p>
+    <p class="text-muted text-sm mb-16">This creates a ready-to-use login for this facility — no extra setup needed.</p>
     <div class="form-group"><label>Full Name</label><input id="svuName" class="form-control" placeholder="Assessor name"/></div>
-    <div class="form-group"><label>Email</label><input id="svuEmail" class="form-control" type="email"/></div>
+    <div class="form-group"><label>Email</label><input id="svuEmail" class="form-control" type="email" placeholder="user@ghs.gov.gh"/></div>
+    <div class="form-group"><label>Password</label><input id="svuPass" class="form-control" type="password" placeholder="Min 6 characters"/></div>
     <div class="form-group"><label>Role</label>
-      <select id="svuRole" class="form-control select-ctrl">
+      <select id="svuRole" class="form-control select-ctrl" onchange="document.getElementById('svModField').style.display=this.value==='assessor'?'block':'none'">
         <option value="assessor">Assessor</option>
         <option value="supervisor">Supervisor</option>
       </select>
     </div>
-    <div class="form-group"><label>Module</label>
+    <div class="form-group" id="svModField"><label>Module</label>
       <select id="svuMod" class="form-control select-ctrl">
         ${Object.entries(MODULES).map(([m,d])=>`<option value="${m}">Module ${m}: ${d.name}</option>`).join('')}
       </select>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSVUser()">💾 Save</button>
-    </div>`);
+      <button class="btn btn-primary" onclick="saveSVUser()">💾 Create Account</button>
+    </div>
+    <div id="svuErr" class="err-msg"></div>`);
 };
 
 window.saveSVUser = async function() {
   const name=document.getElementById('svuName').value.trim();
   const email=document.getElementById('svuEmail').value.trim();
+  const pass=document.getElementById('svuPass').value;
   const role=document.getElementById('svuRole').value;
   const moduleAssigned=document.getElementById('svuMod').value;
-  if(!name||!email){toast('Name and email required','error');return;}
-  const uid='pending_'+Date.now();
-  await set(ref(db,`users/${uid}`),{name,email,role,moduleAssigned,facilityId:activeFacilityId,createdAt:Date.now(),status:'pending'});
-  toast('✅ User profile created. Create auth in Firebase Console with email: '+email);
-  closeModal(); loadSVAssessors();
+  const errEl=document.getElementById('svuErr');
+  if(!name||!email||!pass){ errEl.textContent='Name, email and password are required.'; return; }
+  if(pass.length < 6){ errEl.textContent='Password must be at least 6 characters.'; return; }
+  const btn = document.querySelector('#modalContent .btn-primary');
+  if(btn){ btn.disabled=true; btn.textContent='Creating account...'; }
+  try {
+    const uid = await createAuthUserViaREST(email, pass);
+    await set(ref(db,`users/${uid}`), {
+      name, email, role,
+      moduleAssigned: role==='assessor' ? moduleAssigned : null,
+      facilityId: activeFacilityId,
+      createdAt: Date.now()
+    });
+    toast(`✅ ${name}'s account is ready! They can log in immediately with ${email}.`);
+    closeModal(); loadSVAssessors();
+  } catch(e){
+    errEl.textContent = e.message;
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='💾 Create Account'; }
+  }
 };
 
 function buildSVScorecard() {
