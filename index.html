@@ -1264,7 +1264,7 @@ function buildSAUsers() {
     </div>
     <div class="card">
       <div class="table-wrap">
-        <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Module</th><th>Facility</th><th>Actions</th></tr></thead>
+        <table><thead><tr><th>Name</th><th>Email</th><th>Password</th><th>Role</th><th>Module(s)</th><th>Facility</th><th>Actions</th></tr></thead>
         <tbody id="users-table"></tbody></table>
       </div>
     </div>`;
@@ -1282,12 +1282,27 @@ function loadUsersTable() {
       <tr>
         <td class="fw-bold">${u.name||'–'}</td>
         <td>${u.email||'–'}</td>
+        <td>${passwordCell(uid, u.password)}</td>
         <td><span class="role-badge role-${u.role}">${u.role}</span></td>
-        <td>${u.moduleAssigned?'Module '+u.moduleAssigned:'–'}</td>
+        <td style="font-size:0.78rem">${formatModuleList(u)}</td>
         <td>${u.facilityId&&facilitiesCache[u.facilityId]?facilitiesCache[u.facilityId].name:'–'}</td>
-        <td><button class="btn btn-danger btn-xs" onclick="deleteUser('${uid}')">Delete</button></td>
-      </tr>`).join('');
+        <td style="white-space:nowrap">
+          <button class="btn btn-secondary btn-xs" onclick="openEditUserModal('${uid}')">Edit</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteUser('${uid}')">Delete</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="7" class="text-center text-muted">No users yet</td></tr>';
   });
+}
+
+// Render a masked password cell with a show/hide toggle
+function passwordCell(uid, pwd) {
+  if(!pwd) return '<span class="text-muted text-sm">–</span>';
+  const id = `pwd_${uid}`;
+  return `<span style="font-family:monospace" id="${id}">••••••••</span>
+    <button class="btn btn-secondary btn-xs" style="padding:2px 6px" onclick="
+      const el=document.getElementById('${id}');
+      el.textContent = el.textContent==='••••••••' ? '${pwd.replace(/'/g,"\\\\'")}' : '••••••••';
+    ">👁️</button>`;
 }
 
 window.openCreateUserModal = function() {
@@ -1301,7 +1316,7 @@ window.openCreateUserModal = function() {
       </div>
       <div class="form-group"><label>Full Name *</label><input id="uName" class="form-control" placeholder="Dr. Kofi Mensah"/></div>
       <div class="form-group"><label>Email *</label><input id="uEmail" class="form-control" type="email" placeholder="user@ghs.gov.gh"/></div>
-      <div class="form-group"><label>Password *</label><input id="uPass" class="form-control" type="password" placeholder="Min 8 chars"/></div>
+      <div class="form-group"><label>Password *</label><input id="uPass" class="form-control" type="password" placeholder="Min 6 chars"/></div>
       <div class="form-group">
         <label>Role *</label>
         <select id="uRole" class="form-control select-ctrl" onchange="toggleModuleField()">
@@ -1311,10 +1326,13 @@ window.openCreateUserModal = function() {
         </select>
       </div>
       <div id="moduleField" class="form-group">
-        <label>Assigned Module</label>
-        <select id="uModule" class="form-control select-ctrl">
-          ${Object.entries(MODULES).map(([m,d])=>`<option value="${m}">Module ${m}: ${d.name}</option>`).join('')}
-        </select>
+        <label>Assigned Module(s)</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:180px;overflow-y:auto;border:2px solid var(--border);border-radius:8px;padding:10px">
+          ${Object.entries(MODULES).map(([m,d])=>`
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;font-weight:400">
+              <input type="checkbox" class="uModuleCheck" value="${m}"/> M${m}: ${d.name}
+            </label>`).join('')}
+        </div>
       </div>
       <div class="form-group">
         <label>Assigned Facility</label>
@@ -1341,7 +1359,7 @@ window.createUser = async function() {
   const email=document.getElementById('uEmail').value.trim();
   const pass=document.getElementById('uPass').value;
   const role=document.getElementById('uRole').value;
-  const moduleAssigned=document.getElementById('uModule')?.value;
+  const moduleAssigned=Array.from(document.querySelectorAll('.uModuleCheck:checked')).map(c=>parseInt(c.value));
   const facilityId=document.getElementById('uFacility').value;
   if(!name||!email||!pass){ toast('All fields required','error'); return; }
   if(pass.length < 6){ document.getElementById('createUserErr').textContent='Password must be at least 6 characters.'; return; }
@@ -1350,8 +1368,8 @@ window.createUser = async function() {
   try {
     const uid = await createAuthUserViaREST(email, pass);
     await set(ref(db,`users/${uid}`), {
-      name, email, role,
-      moduleAssigned: role==='assessor' ? (moduleAssigned||null) : null,
+      name, email, password: pass, role,
+      moduleAssigned: role==='assessor' ? moduleAssigned : null,
       facilityId: facilityId||null,
       createdAt: Date.now()
     });
@@ -1368,6 +1386,75 @@ window.deleteUser = async function(uid) {
   if(!confirm('Delete this user?')) return;
   await remove(ref(db,`users/${uid}`));
   toast('User removed'); loadUsersTable();
+};
+
+// ── Shared Edit User Modal (used by both Super Admin and Supervisor) ──
+window.openEditUserModal = function(uid, returnFn) {
+  get(ref(db,`users/${uid}`)).then(async snap=>{
+    const u = snap.val();
+    if(!u) return;
+    let facOptions = '';
+    if(userProfile.role==='superadmin'){
+      const facSnap = await get(ref(db,'facilities'));
+      const facs = facSnap.val()||{};
+      facOptions = `<div class="form-group"><label>Assigned Facility</label>
+        <select id="euFacility" class="form-control select-ctrl">
+          <option value="">— Select facility —</option>
+          ${Object.entries(facs).map(([fid,f])=>`<option value="${fid}" ${u.facilityId===fid?'selected':''}>${f.name}</option>`).join('')}
+        </select></div>`;
+    }
+    const assigned = getAssignedModules(u);
+    openModal(`
+      <div class="modal-header">
+        <span class="modal-title">✏️ Edit User</span>
+        <span class="modal-close" onclick="closeModal()">✕</span>
+      </div>
+      <div class="form-group"><label>Full Name</label><input id="euName" class="form-control" value="${(u.name||'').replace(/"/g,'&quot;')}"/></div>
+      <div class="form-group"><label>Email</label><input id="euEmail" class="form-control" value="${u.email||''}" disabled/>
+        <div class="text-muted text-sm mt-8">Email cannot be changed here. Delete and recreate the account if needed.</div></div>
+      <div class="form-group"><label>Password</label>
+        <input id="euPass" class="form-control" value="${u.password||''}" placeholder="New password (leave blank to keep current)"/>
+        <div class="text-muted text-sm mt-8">⚠️ Updating this only changes the stored record. To actually change their login password, the user must use "Forgot Password" on the login screen, or you must update it via Firebase Console → Authentication.</div>
+      </div>
+      <div class="form-group"><label>Role</label>
+        <select id="euRole" class="form-control select-ctrl" onchange="document.getElementById('euModField').style.display=this.value==='assessor'?'block':'none'">
+          <option value="assessor" ${u.role==='assessor'?'selected':''}>Assessor</option>
+          <option value="supervisor" ${u.role==='supervisor'?'selected':''}>Supervisor</option>
+          ${userProfile.role==='superadmin'?`<option value="superadmin" ${u.role==='superadmin'?'selected':''}>Super Admin</option>`:''}
+        </select>
+      </div>
+      <div id="euModField" class="form-group" style="display:${u.role==='assessor'?'block':'none'}">
+        <label>Assigned Module(s)</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:180px;overflow-y:auto;border:2px solid var(--border);border-radius:8px;padding:10px">
+          ${Object.entries(MODULES).map(([m,d])=>`
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;font-weight:400">
+              <input type="checkbox" class="euModuleCheck" value="${m}" ${assigned.includes(parseInt(m))?'checked':''}/> M${m}: ${d.name}
+            </label>`).join('')}
+        </div>
+      </div>
+      ${facOptions}
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEditUser('${uid}','${returnFn||''}')">💾 Save Changes</button>
+      </div>
+      <div id="editUserErr" class="err-msg"></div>`);
+  });
+};
+
+window.saveEditUser = async function(uid, returnFn) {
+  const name = document.getElementById('euName').value.trim();
+  const pass = document.getElementById('euPass').value;
+  const role = document.getElementById('euRole').value;
+  const moduleAssigned = Array.from(document.querySelectorAll('.euModuleCheck:checked')).map(c=>parseInt(c.value));
+  if(!name){ document.getElementById('editUserErr').textContent='Name is required.'; return; }
+  const updates = { name, role, moduleAssigned: role==='assessor' ? moduleAssigned : null };
+  if(pass) updates.password = pass;
+  const facEl = document.getElementById('euFacility');
+  if(facEl) updates.facilityId = facEl.value||null;
+  await update(ref(db,`users/${uid}`), updates);
+  toast(`✅ ${name}'s profile updated.`);
+  closeModal();
+  if(returnFn==='sv') loadSVAssessors(); else loadUsersTable();
 };
 
 
@@ -1460,7 +1547,7 @@ function buildSVAssessors() {
       <button class="btn btn-primary" onclick="openSVCreateUser()">+ Add Assessor</button>
     </div>
     <div class="card"><div class="table-wrap">
-      <table><thead><tr><th>Name</th><th>Email</th><th>Module</th><th>Status</th></tr></thead>
+      <table><thead><tr><th>Name</th><th>Email</th><th>Password</th><th>Module(s)</th><th>Role</th><th>Actions</th></tr></thead>
       <tbody id="sv-assessortable"></tbody></table>
     </div></div>`;
   loadSVAssessors();
@@ -1472,16 +1559,27 @@ function loadSVAssessors() {
     const tb=document.getElementById('sv-assessortable');
     if(!tb) return;
     const myUsers=Object.entries(users).filter(([,u])=>u.facilityId===activeFacilityId);
-    if(!myUsers.length){tb.innerHTML='<tr><td colspan="4" class="text-center text-muted">No users assigned to this facility</td></tr>';return;}
+    if(!myUsers.length){tb.innerHTML='<tr><td colspan="6" class="text-center text-muted">No users assigned to this facility</td></tr>';return;}
     tb.innerHTML=myUsers.map(([uid,u])=>`
       <tr>
         <td class="fw-bold">${u.name}</td>
         <td>${u.email}</td>
-        <td>${u.moduleAssigned?'Module '+u.moduleAssigned+': '+(MODULES[u.moduleAssigned]?.name||''):'–'}</td>
+        <td>${passwordCell(uid, u.password)}</td>
+        <td style="font-size:0.78rem">${formatModuleList(u)}</td>
         <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-secondary btn-xs" onclick="openEditUserModal('${uid}','sv')">Edit</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteSVUser('${uid}')">Delete</button>
+        </td>
       </tr>`).join('');
   });
 }
+
+window.deleteSVUser = async function(uid) {
+  if(!confirm('Delete this user?')) return;
+  await remove(ref(db,`users/${uid}`));
+  toast('User removed'); loadSVAssessors();
+};
 
 window.openSVCreateUser = function() {
   openModal(`
@@ -1499,10 +1597,14 @@ window.openSVCreateUser = function() {
         <option value="supervisor">Supervisor</option>
       </select>
     </div>
-    <div class="form-group" id="svModField"><label>Module</label>
-      <select id="svuMod" class="form-control select-ctrl">
-        ${Object.entries(MODULES).map(([m,d])=>`<option value="${m}">Module ${m}: ${d.name}</option>`).join('')}
-      </select>
+    <div class="form-group" id="svModField"><label>Assigned Module(s)</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:180px;overflow-y:auto;border:2px solid var(--border);border-radius:8px;padding:10px">
+        ${Object.entries(MODULES).map(([m,d])=>`
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;font-weight:400">
+            <input type="checkbox" class="svuModuleCheck" value="${m}"/> M${m}: ${d.name}
+          </label>`).join('')}
+      </div>
+      <div class="text-muted text-sm mt-8">Select one or more modules for this assessor to handle.</div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -1516,16 +1618,17 @@ window.saveSVUser = async function() {
   const email=document.getElementById('svuEmail').value.trim();
   const pass=document.getElementById('svuPass').value;
   const role=document.getElementById('svuRole').value;
-  const moduleAssigned=document.getElementById('svuMod').value;
+  const moduleAssigned=Array.from(document.querySelectorAll('.svuModuleCheck:checked')).map(c=>parseInt(c.value));
   const errEl=document.getElementById('svuErr');
   if(!name||!email||!pass){ errEl.textContent='Name, email and password are required.'; return; }
   if(pass.length < 6){ errEl.textContent='Password must be at least 6 characters.'; return; }
+  if(role==='assessor' && !moduleAssigned.length){ errEl.textContent='Select at least one module for this assessor.'; return; }
   const btn = document.querySelector('#modalContent .btn-primary');
   if(btn){ btn.disabled=true; btn.textContent='Creating account...'; }
   try {
     const uid = await createAuthUserViaREST(email, pass);
     await set(ref(db,`users/${uid}`), {
-      name, email, role,
+      name, email, password: pass, role,
       moduleAssigned: role==='assessor' ? moduleAssigned : null,
       facilityId: activeFacilityId,
       createdAt: Date.now()
@@ -1590,16 +1693,18 @@ function refreshSVScorecard() {
 //  ASSESSOR VIEWS
 // ══════════════════════════════════════════════════════════════
 function buildAssessor() {
-  const moduleId = parseInt(userProfile.moduleAssigned);
-  if(!moduleId || !MODULES[moduleId]){ showError('No module assigned. Contact your supervisor.'); return; }
+  const moduleIds = getAssignedModules(userProfile);
+  if(!moduleIds.length){ showError('No module assigned. Contact your supervisor.'); return; }
   activeFacilityId = userProfile.facilityId;
   if(!activeFacilityId){ showError('No facility assigned. Contact admin.'); return; }
-  
-  const mod = MODULES[moduleId];
-  const tabs = [{id:'as-form', label:`${mod.icon} Module ${moduleId}: ${mod.name}`},{id:'as-summary', label:'📊 My Summary'}];
-  renderTabs(tabs,'as-form');
-  renderPage('as-form', ()=>buildAssessorForm(moduleId));
-  renderPage('as-summary', ()=>buildAssessorSummary(moduleId));
+
+  const tabs = moduleIds.map(modId=>({id:`as-form-${modId}`, label:`${MODULES[modId].icon} M${modId}: ${MODULES[modId].name}`}));
+  tabs.push({id:'as-summary', label:'📊 My Summary'});
+  renderTabs(tabs, tabs[0].id);
+  moduleIds.forEach(modId=>{
+    renderPage(`as-form-${modId}`, ()=>buildAssessorForm(modId));
+  });
+  renderPage('as-summary', ()=>buildAssessorSummary(moduleIds));
 
   get(ref(db,`facilities/${activeFacilityId}`)).then(snap=>{
     const fac=snap.val();
@@ -1608,21 +1713,21 @@ function buildAssessor() {
 }
 
 function buildAssessorForm(moduleId) {
-  const p = getPage('as-form');
+  const p = getPage(`as-form-${moduleId}`);
   const mod = MODULES[moduleId];
   
   p.innerHTML = `
     <div class="module-header">
       <h2>${mod.icon} Module ${moduleId}: ${mod.name}</h2>
       <div class="meta">Enter scores for each item below. Click section headers to expand/collapse.</div>
-      <div class="progress-summary" id="as-prog-summary">
-        <div class="prog-item"><div class="prog-val" id="as-total-score">0</div><div>Points Obtained</div></div>
+      <div class="progress-summary" id="as-prog-summary-${moduleId}">
+        <div class="prog-item"><div class="prog-val" id="as-total-score-${moduleId}">0</div><div>Points Obtained</div></div>
         <div class="prog-item"><div class="prog-val">${mod.maxScore}</div><div>Max Points</div></div>
-        <div class="prog-item"><div class="prog-val" id="as-pct-score">0%</div><div>Percentage</div></div>
-        <div class="prog-item"><div class="prog-val" id="as-items-done">0</div><div>Items Scored</div></div>
+        <div class="prog-item"><div class="prog-val" id="as-pct-score-${moduleId}">0%</div><div>Percentage</div></div>
+        <div class="prog-item"><div class="prog-val" id="as-items-done-${moduleId}">0</div><div>Items Scored</div></div>
       </div>
     </div>
-    <div id="as-sections"></div>
+    <div id="as-sections-${moduleId}"></div>
     <div style="text-align:center;padding:16px">
       <button class="btn btn-primary" style="min-width:200px" onclick="submitAllScores(${moduleId})">💾 Save All Scores</button>
     </div>`;
@@ -1645,7 +1750,7 @@ window.onScoreInput = function(el, itemNo, maxScore, moduleId) {
 };
 
 window.autoSaveScore = async function(itemNo, maxScore, moduleId) {
-  const inp = document.getElementById(`inp_${itemNo.replace(/\./g,'_')}`);
+  const inp = document.getElementById(`inp_m${moduleId}_${itemNo.replace(/\./g,'_')}`);
   if(!inp) return;
   const v = parseFloat(inp.value);
   if(isNaN(v)||v<0||v>maxScore) return;
@@ -1658,7 +1763,7 @@ window.submitAllScores = async function(moduleId) {
   const data = {};
   let hasError = false;
   mod.sections.forEach(sec=>sec.items.forEach(it=>{
-    const inp = document.getElementById(`inp_${it.no.replace(/\./g,'_')}`);
+    const inp = document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
     if(inp&&inp.value!==''){
       const v = parseFloat(inp.value);
       if(!isNaN(v)&&v>=0&&v<=it.score) data[it.no]=v;
@@ -1668,22 +1773,21 @@ window.submitAllScores = async function(moduleId) {
   if(hasError){ toast('Some scores exceed the maximum. Fix them first.','error'); return; }
   await update(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`), data);
   toast(`✅ Module ${moduleId} scores submitted!`);
-  buildAssessorSummary(moduleId);
 };
 
 function updateSummary(moduleId) {
   const mod = MODULES[moduleId];
   let total=0, itemsDone=0;
   mod.sections.forEach(sec=>sec.items.forEach(it=>{
-    const inp=document.getElementById(`inp_${it.no.replace(/\./g,'_')}`);
+    const inp=document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
     if(inp&&inp.value!==''){
       const v=parseFloat(inp.value);
       if(!isNaN(v)&&v>=0){ total+=v; itemsDone++; }
     }
   }));
-  const el_t=document.getElementById('as-total-score');
-  const el_p=document.getElementById('as-pct-score');
-  const el_i=document.getElementById('as-items-done');
+  const el_t=document.getElementById(`as-total-score-${moduleId}`);
+  const el_p=document.getElementById(`as-pct-score-${moduleId}`);
+  const el_i=document.getElementById(`as-items-done-${moduleId}`);
   if(el_t) el_t.textContent=total.toFixed(1);
   if(el_p) el_p.textContent=Math.round(total/mod.maxScore*100)+'%';
   if(el_i) el_i.textContent=itemsDone;
@@ -1691,26 +1795,30 @@ function updateSummary(moduleId) {
 
 function buildAssessorSummary(moduleId) {
   const p = getPage('as-summary');
-  const mod = MODULES[moduleId];
+  const moduleIds = Array.isArray(moduleId) ? moduleId : [moduleId];
   p.innerHTML = `<div class="card">
-    <div class="card-header"><span class="card-title">${mod.icon} Module ${moduleId} Summary</span>
-      <button class="btn btn-gold btn-sm" onclick="buildAssessorSummary(${moduleId})">🔄 Refresh</button>
+    <div class="card-header"><span class="card-title">📊 My Assigned Modules Summary</span>
+      <button class="btn btn-gold btn-sm" onclick="buildAssessorSummary(${JSON.stringify(moduleIds)})">🔄 Refresh</button>
     </div>
     <div id="as-sum-content"><div class="spinner"></div></div>
   </div>`;
-  
-  get(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`)).then(snap=>{
-    const scores=snap.val()||{};
-    let total=0, itemsDone=0, totalItems=0;
-    mod.sections.forEach(sec=>sec.items.forEach(it=>{
-      totalItems++;
-      if(scores[it.no]!=null){ total+=scores[it.no]; itemsDone++; }
-    }));
-    const pct=Math.round(total/mod.maxScore*100);
+
+  get(ref(db,`facilities/${activeFacilityId}/scores`)).then(snap=>{
+    const allScores=snap.val()||{};
     const c=document.getElementById('as-sum-content');
     if(!c) return;
-    c.innerHTML=`
-      <div style="text-align:center;padding:20px;background:var(--ghs-light);border-radius:10px;margin-bottom:20px">
+    c.innerHTML = moduleIds.map(mId=>{
+      const mod = MODULES[mId];
+      const scores = allScores[`m${mId}`]||{};
+      let total=0, itemsDone=0, totalItems=0;
+      mod.sections.forEach(sec=>sec.items.forEach(it=>{
+        totalItems++;
+        if(scores[it.no]!=null){ total+=scores[it.no]; itemsDone++; }
+      }));
+      const pct=Math.round(total/mod.maxScore*100);
+      return `
+      <div style="text-align:center;padding:20px;background:var(--ghs-light);border-radius:10px;margin:0 0 20px">
+        <div class="fw-bold" style="color:var(--ghs-dark)">${mod.icon} Module ${mId}: ${mod.name}</div>
         <div style="font-size:2.5rem;font-weight:900;color:var(--ghs-green)">${pct}%</div>
         <div>${total.toFixed(1)} / ${mod.maxScore} points</div>
         <div class="text-muted text-sm mt-8">${itemsDone} / ${totalItems} items scored</div>
@@ -1727,7 +1835,9 @@ function buildAssessorSummary(moduleId) {
               ${filled?sv+' / '+it.score:'Not scored'}
             </span>
           </div>`;
-        }).join('')}`).join('')}`;
+        }).join('')}`).join('')}
+      <hr class="divider">`;
+    }).join('');
   });
 }
 
@@ -1758,6 +1868,20 @@ function getModuleScore(scores, m) {
   const mod = MODULES[m];
   const ms = scores[`m${m}`]||{};
   return mod.sections.flatMap(s=>s.items).reduce((sum,it)=>sum+(ms[it.no]||0),0);
+}
+
+// Normalize moduleAssigned (string, number, or array) to an array of numeric module IDs
+function getAssignedModules(u) {
+  if(!u || u.moduleAssigned==null) return [];
+  const raw = u.moduleAssigned;
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map(x=>parseInt(x)).filter(x=>MODULES[x]);
+}
+
+function formatModuleList(u) {
+  const mods = getAssignedModules(u);
+  if(!mods.length) return '–';
+  return mods.map(m=>`M${m}: ${MODULES[m].name}`).join(', ');
 }
 
 function renderTabs(tabs, defaultId) {
@@ -1968,21 +2092,26 @@ window.renderAssessorStatusGrid = function(containerId) {
       return;
     }
     container.innerHTML = assessors.map(([uid,u])=>{
-      const modId = u.moduleAssigned;
-      if(!modId||!MODULES[modId]) return '';
-      const modScores = scores[`m${modId}`]||{};
-      const items = MODULES[modId].sections.flatMap(s=>s.items);
-      const scored = items.filter(it=>modScores[it.no]!=null).length;
-      const total = items.length;
-      const pct = Math.round(scored/total*100);
+      const modIds = getAssignedModules(u);
+      if(!modIds.length) return '';
+      let scored=0, total=0, score=0, maxScore=0;
+      modIds.forEach(modId=>{
+        const modScores = scores[`m${modId}`]||{};
+        const items = MODULES[modId].sections.flatMap(s=>s.items);
+        scored += items.filter(it=>modScores[it.no]!=null).length;
+        total += items.length;
+        score += getModuleScore(scores, modId);
+        maxScore += MODULES[modId].maxScore;
+      });
+      const pct = total ? Math.round(scored/total*100) : 0;
       const status = scored===0?'inactive':scored===total?'active':'partial';
-      const score = getModuleScore(scores, modId);
-      const maxScore = MODULES[modId].maxScore;
-      const scorePct = Math.round(score/maxScore*100);
+      const scorePct = maxScore ? Math.round(score/maxScore*100) : 0;
+      const icons = modIds.map(m=>MODULES[m].icon).join('');
+      const modLabel = modIds.map(m=>'M'+m).join(', ');
       return `<div class="assessor-status-card ${status}">
-        <div class="assessor-avatar">${MODULES[modId].icon}</div>
+        <div class="assessor-avatar">${icons}</div>
         <div class="fw-bold text-sm" style="margin-bottom:4px">${u.name}</div>
-        <div class="text-muted" style="font-size:0.72rem;margin-bottom:8px">M${modId}: ${MODULES[modId].name.substring(0,18)}</div>
+        <div class="text-muted" style="font-size:0.72rem;margin-bottom:8px">${modLabel}</div>
         ${makeDonut(scorePct, 60)}
         <div style="font-size:0.72rem;margin-top:6px;color:var(--gray)">${scored}/${total} items</div>
         <div class="progress mt-8" style="height:4px">
@@ -2139,14 +2268,14 @@ window.onScoreInput = function(el, itemNo, maxScore, moduleId) {
   else if(pct >= 40) el.classList.add('s-good');
   else el.classList.add('s-poor');
   // Mark parent row
-  const row = document.getElementById(`row_${itemNo.replace(/\./g,'_')}`);
+  const row = document.getElementById(`row_m${moduleId}_${itemNo.replace(/\./g,'_')}`);
   if(row){ row.classList.toggle('completed', pct>=50); row.classList.toggle('needs-attention', pct<50); }
   updateSummary(moduleId);
 };
 
 // ── Improved autoSave with visual dot ──
 window.autoSaveScore = async function(itemNo, maxScore, moduleId) {
-  const inp = document.getElementById(`inp_${itemNo.replace(/\./g,'_')}`);
+  const inp = document.getElementById(`inp_m${moduleId}_${itemNo.replace(/\./g,'_')}`);
   if(!inp || inp.value==='') return;
   const v = parseFloat(inp.value);
   if(isNaN(v)||v<0||v>maxScore) return;
@@ -2169,7 +2298,7 @@ function updateSectionScore(moduleId) {
   mod.sections.forEach((sec,si)=>{
     let secTotal=0, secMax=0;
     sec.items.forEach(it=>{
-      const inp=document.getElementById(`inp_${it.no.replace(/\./g,'_')}`);
+      const inp=document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
       secMax+=it.score;
       if(inp&&inp.value!==''){const v=parseFloat(inp.value);if(!isNaN(v)&&v>=0) secTotal+=v;}
     });
@@ -2183,7 +2312,7 @@ function updateSectionScore(moduleId) {
 // ── Improved section rendering with score badge in title ──
 function renderAssessorSections(moduleId, existing) {
   const mod = MODULES[moduleId];
-  const container = document.getElementById('as-sections');
+  const container = document.getElementById(`as-sections-${moduleId}`);
   if(!container) return;
   container.innerHTML = mod.sections.map((sec,si)=>{
     const secMax = sec.items.reduce((s,it)=>s+it.score,0);
@@ -2199,12 +2328,13 @@ function renderAssessorSections(moduleId, existing) {
       </div>
       <div class="section-body open" id="sec${moduleId}_${si}">
         ${sec.items.map(it=>{
+          const safeNo = `m${moduleId}_${it.no.replace(/\./g,'_')}`;
           const val = existing[it.no]??'';
           const pct = typeof existing[it.no]==='number'?(existing[it.no]/it.score*100):null;
           let cls = '';
           if(pct!==null){ cls = pct>=70?'s-excellent':pct>=40?'s-good':'s-poor'; }
           const rowCls = pct!==null?(pct>=50?'completed':'needs-attention'):'';
-          return `<div class="item-row ${rowCls}" id="row_${it.no.replace(/\./g,'_')}">
+          return `<div class="item-row ${rowCls}" id="row_${safeNo}">
             <div><span class="item-no">${it.no}</span></div>
             <div class="item-info">
               <h4>${it.item}</h4>
@@ -2213,7 +2343,7 @@ function renderAssessorSections(moduleId, existing) {
             <div class="item-scoring">
               <div class="expected-score">Max: <b>${it.score}</b></div>
               <input type="number" class="score-input ${cls}"
-                id="inp_${it.no.replace(/\./g,'_')}"
+                id="inp_${safeNo}"
                 value="${val}"
                 min="0" max="${it.score}" step="0.5"
                 placeholder="0–${it.score}"
