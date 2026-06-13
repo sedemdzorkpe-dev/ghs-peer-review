@@ -1510,7 +1510,7 @@ function loadSVAllModules() {
       const ms=getModuleScore(scores,m);
       const pct=Math.round(ms/mod.maxScore*100);
       const items=mod.sections.flatMap(s=>s.items);
-      const scoredItems=items.filter(it=>scores[`m${m}`]&&scores[`m${m}`][it.no]!=null);
+      const scoredItems=items.filter(it=>scores[`m${m}`]&&scores[`m${m}`][dbKey(it.no)]!=null);
       return `<div class="section-block">
         <div class="section-title" onclick="toggleSection('svmod${m}')">
           <span>${mod.icon} Module ${m}: ${mod.name}</span>
@@ -1525,7 +1525,7 @@ function loadSVAllModules() {
             <div style="margin-bottom:12px">
               <h4 style="color:var(--ghs-dark);margin-bottom:8px;font-size:0.85rem">${sec.title}</h4>
               ${sec.items.map(it=>{
-                const sv = scores[`m${m}`]?.[it.no]??'–';
+                const sv = scores[`m${m}`]?.[dbKey(it.no)]??'–';
                 const pct2 = typeof sv==='number'?Math.round(sv/it.score*100):0;
                 return `<div class="flex-between" style="padding:6px 10px;border-radius:6px;background:${typeof sv==='number'?'#f0fff5':'#fff8ee'};margin-bottom:4px">
                   <span class="text-sm"><b>${it.no}</b> – ${it.item.substring(0,60)}${it.item.length>60?'...':''}</span>
@@ -1754,7 +1754,7 @@ window.autoSaveScore = async function(itemNo, maxScore, moduleId) {
   if(!inp) return;
   const v = parseFloat(inp.value);
   if(isNaN(v)||v<0||v>maxScore) return;
-  await update(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`),{[itemNo]:v});
+  await update(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`),{[dbKey(itemNo)]:v});
   toast(`✅ Saved: ${itemNo} = ${v}`);
 };
 
@@ -1766,7 +1766,7 @@ window.submitAllScores = async function(moduleId) {
     const inp = document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
     if(inp&&inp.value!==''){
       const v = parseFloat(inp.value);
-      if(!isNaN(v)&&v>=0&&v<=it.score) data[it.no]=v;
+      if(!isNaN(v)&&v>=0&&v<=it.score) data[dbKey(it.no)]=v;
       else hasError=true;
     }
   }));
@@ -1813,7 +1813,7 @@ function buildAssessorSummary(moduleId) {
       let total=0, itemsDone=0, totalItems=0;
       mod.sections.forEach(sec=>sec.items.forEach(it=>{
         totalItems++;
-        if(scores[it.no]!=null){ total+=scores[it.no]; itemsDone++; }
+        if(scores[dbKey(it.no)]!=null){ total+=scores[dbKey(it.no)]; itemsDone++; }
       }));
       const pct=Math.round(total/mod.maxScore*100);
       return `
@@ -1826,7 +1826,7 @@ function buildAssessorSummary(moduleId) {
       ${mod.sections.map(sec=>`
         <h4 style="color:var(--ghs-dark);margin:16px 0 8px">${sec.title}</h4>
         ${sec.items.map(it=>{
-          const sv=scores[it.no];
+          const sv=scores[dbKey(it.no)];
           const filled=sv!=null;
           const p2=filled?Math.round(sv/it.score*100):0;
           return `<div class="flex-between" style="padding:7px 10px;border-radius:6px;background:${filled?'#f0fff5':'#fffbf0'};margin-bottom:4px">
@@ -1867,7 +1867,13 @@ function setupLiveListeners() {
 function getModuleScore(scores, m) {
   const mod = MODULES[m];
   const ms = scores[`m${m}`]||{};
-  return mod.sections.flatMap(s=>s.items).reduce((sum,it)=>sum+(ms[it.no]||0),0);
+  return mod.sections.flatMap(s=>s.items).reduce((sum,it)=>sum+(ms[dbKey(it.no)]||0),0);
+}
+
+// Firebase Realtime Database keys cannot contain '.', '#', '$', '[', ']', '/'
+// Item numbers like "A1.1" or "2.6.7" must be sanitized before use as a DB key.
+function dbKey(itemNo) {
+  return String(itemNo).replace(/[.#$\[\]\/]/g, '_');
 }
 
 // Normalize moduleAssigned (string, number, or array) to an array of numeric module IDs
@@ -2098,7 +2104,7 @@ window.renderAssessorStatusGrid = function(containerId) {
       modIds.forEach(modId=>{
         const modScores = scores[`m${modId}`]||{};
         const items = MODULES[modId].sections.flatMap(s=>s.items);
-        scored += items.filter(it=>modScores[it.no]!=null).length;
+        scored += items.filter(it=>modScores[dbKey(it.no)]!=null).length;
         total += items.length;
         score += getModuleScore(scores, modId);
         maxScore += MODULES[modId].maxScore;
@@ -2282,7 +2288,7 @@ window.autoSaveScore = async function(itemNo, maxScore, moduleId) {
   // Show saving dot
   inp.title = 'Saving...';
   try {
-    await update(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`),{[itemNo]:v});
+    await update(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`),{[dbKey(itemNo)]:v});
     inp.title = `Saved: ${v}`;
     addFeedItem(`✏️ ${userProfile?.name||'Assessor'} scored ${itemNo} = ${v} pts`);
     // Update section score in header
@@ -2316,7 +2322,7 @@ function renderAssessorSections(moduleId, existing) {
   if(!container) return;
   container.innerHTML = mod.sections.map((sec,si)=>{
     const secMax = sec.items.reduce((s,it)=>s+it.score,0);
-    const secCurrent = sec.items.reduce((s,it)=>s+(existing[it.no]||0),0);
+    const secCurrent = sec.items.reduce((s,it)=>s+(existing[dbKey(it.no)]||0),0);
     const secPct = Math.round(secCurrent/secMax*100);
     return `<div class="section-block">
       <div class="section-title" onclick="toggleSection('sec${moduleId}_${si}')">
@@ -2329,8 +2335,8 @@ function renderAssessorSections(moduleId, existing) {
       <div class="section-body open" id="sec${moduleId}_${si}">
         ${sec.items.map(it=>{
           const safeNo = `m${moduleId}_${it.no.replace(/\./g,'_')}`;
-          const val = existing[it.no]??'';
-          const pct = typeof existing[it.no]==='number'?(existing[it.no]/it.score*100):null;
+          const val = existing[dbKey(it.no)]??'';
+          const pct = typeof existing[dbKey(it.no)]==='number'?(existing[dbKey(it.no)]/it.score*100):null;
           let cls = '';
           if(pct!==null){ cls = pct>=70?'s-excellent':pct>=40?'s-good':'s-poor'; }
           const rowCls = pct!==null?(pct>=50?'completed':'needs-attention'):'';
