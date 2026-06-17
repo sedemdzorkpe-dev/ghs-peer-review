@@ -2,6 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="theme-color" content="#006633">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GHS Peer Review">
+<link rel="manifest" href="manifest.json">
+<style>
+/* ── OFFLINE BANNER ── */
+#offlineBanner {
+  display:none; position:fixed; bottom:0; left:0; right:0; z-index:9999;
+  background:#c0392b; color:white; text-align:center;
+  padding:10px 16px; font-size:0.88rem; font-weight:600;
+  box-shadow:0 -2px 10px rgba(0,0,0,0.3);
+  animation:slideUp 0.4s ease;
+}
+#offlineBanner.show { display:block; }
+#offlineBanner.syncing { background:#e67e22; }
+#offlineBanner.online  { background:#27ae60; }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.pending-badge {
+  background:#e74c3c; color:white; border-radius:20px;
+  padding:2px 8px; font-size:0.72rem; font-weight:800;
+  margin-left:6px; display:none;
+}
+.pending-badge.show { display:inline; }
+/* ── INPUT PENDING STATE ── */
+.score-input.pending { border-color:#e67e22 !important; background:#fff8f0 !important; }
+</style>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GHS Peer Review Assessment Platform 2026</title>
 <style>
@@ -1760,8 +1788,30 @@ window.submitAllScores = async function(moduleId) {
     }
   }));
   if(hasError){ toast('Some scores exceed the maximum. Fix them first.','error'); return; }
-  await update(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`), data);
-  toast(`✅ Module ${moduleId} scores submitted!`);
+  const path = `facilities/${activeFacilityId}/scores/m${moduleId}`;
+  if(isOnline) {
+    try {
+      await update(ref(db, path), data);
+      // Un-mark all pending inputs for this module
+      mod.sections.forEach(sec=>sec.items.forEach(it=>{
+        const inp = document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
+        if(inp) inp.classList.remove('pending');
+      }));
+      toast(`✅ Module ${moduleId} scores submitted to server!`);
+    } catch(e) {
+      await queueWrite(path, data);
+      toast(`📵 Offline — Module ${moduleId} scores saved locally. Will sync when online.`, 'warning');
+    }
+  } else {
+    await queueWrite(path, data);
+    // Mark all inputs as pending
+    mod.sections.forEach(sec=>sec.items.forEach(it=>{
+      const inp = document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
+      if(inp&&inp.value!=='') inp.classList.add('pending');
+    }));
+    toast(`📵 Offline — Module ${moduleId} scores saved locally. Will sync when online.`, 'warning');
+    updateOfflineBanner();
+  }
 };
 
 function updateSummary(moduleId) {
@@ -2274,17 +2324,20 @@ window.autoSaveScore = async function(itemNo, maxScore, moduleId) {
   if(!inp || inp.value==='') return;
   const v = parseFloat(inp.value);
   if(isNaN(v)||v<0||v>maxScore) return;
-  // Show saving dot
   inp.title = 'Saving...';
-  try {
-    await update(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`),{[dbKey(itemNo)]:v});
+  // Tag input with dbkey for sync un-marking
+  inp.dataset.dbkey = dbKey(itemNo);
+  const result = await writeScore(activeFacilityId, moduleId, itemNo, v);
+  if(result === 'synced') {
+    inp.classList.remove('pending');
     inp.title = `Saved: ${v}`;
     addFeedItem(`✏️ ${userProfile?.name||'Assessor'} scored ${itemNo} = ${v} pts`);
-    // Update section score in header
-    updateSectionScore(moduleId);
-  } catch(e) {
-    toast(`Failed to save ${itemNo}`,'error');
+  } else {
+    inp.classList.add('pending');
+    inp.title = `Queued offline: ${v} — will sync when online`;
+    toast(`📵 Offline — "${itemNo} = ${v}" saved locally`, 'warning');
   }
+  updateSectionScore(moduleId);
 };
 
 function updateSectionScore(moduleId) {
@@ -2492,6 +2545,192 @@ function buildSAReports() {
     </table></div>`;
   });
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  OFFLINE-FIRST SYSTEM
+//  Uses IndexedDB to queue writes when offline.
+//  Automatically syncs to Firebase when connection is restored.
+// ═══════════════════════════════════════════════════════════════
+
+// ── Register Service Worker ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.log('SW failed:', err));
+  });
+}
+
+// ── IndexedDB Setup ──
+const IDB_NAME = 'ghs-offline-queue';
+const IDB_STORE = 'pending-scores';
+
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        const store = db.createObjectStore(IDB_STORE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('path', 'path', { unique: false });
+      }
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function queueWrite(path, data) {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_STORE, 'readwrite');
+    const store = tx.objectStore(IDB_STORE);
+    // Check if same path already queued — update it
+    const idx = store.index('path');
+    const getReq = idx.getAll(path);
+    getReq.onsuccess = e => {
+      const existing = e.target.result;
+      if (existing.length) {
+        // Merge data into existing record
+        const rec = existing[0];
+        const merged = { ...rec.data, ...data };
+        store.put({ ...rec, data: merged });
+      } else {
+        store.add({ path, data, timestamp: Date.now() });
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = e => reject(e.target.error);
+  });
+}
+
+async function getPendingWrites() {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).getAll();
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function deletePendingWrite(id) {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = e => reject(e.target.error);
+  });
+}
+
+async function getPendingCount() {
+  const pending = await getPendingWrites();
+  return pending.length;
+}
+
+// ── Online/Offline State ──
+let isOnline = navigator.onLine;
+
+function updateOfflineBanner() {
+  const banner = document.getElementById('offlineBanner');
+  const text = document.getElementById('offlineBannerText');
+  const countEl = document.getElementById('pendingCount');
+  if (!banner) return;
+  if (!isOnline) {
+    banner.className = 'show';
+    getPendingCount().then(n => {
+      text.textContent = '📵 OFFLINE — Scores saved locally.';
+      if (n > 0) countEl.textContent = `(${n} pending sync)`;
+      else countEl.textContent = '';
+    });
+  } else {
+    banner.className = 'online show';
+    text.textContent = '✅ Back ONLINE — syncing pending scores...';
+    countEl.textContent = '';
+    setTimeout(() => { banner.className = ''; }, 3000);
+  }
+}
+
+window.addEventListener('online', async () => {
+  isOnline = true;
+  updateOfflineBanner();
+  await syncPendingWrites();
+});
+
+window.addEventListener('offline', () => {
+  isOnline = false;
+  updateOfflineBanner();
+});
+
+// ── Sync Engine ──
+async function syncPendingWrites() {
+  const pending = await getPendingWrites();
+  if (!pending.length) return;
+  const banner = document.getElementById('offlineBanner');
+  const text = document.getElementById('offlineBannerText');
+  if (banner) { banner.className = 'syncing show'; }
+  if (text) text.textContent = `🔄 Syncing ${pending.length} pending score(s)...`;
+  let synced = 0, failed = 0;
+  for (const item of pending) {
+    try {
+      await update(ref(db, item.path), item.data);
+      await deletePendingWrite(item.id);
+      synced++;
+      // Un-mark inputs that are now synced
+      Object.keys(item.data).forEach(key => {
+        const inps = document.querySelectorAll('.score-input.pending');
+        inps.forEach(inp => { if (inp.dataset.dbkey === key) inp.classList.remove('pending'); });
+      });
+    } catch(e) {
+      failed++;
+      console.warn('Sync failed for', item.path, e);
+    }
+  }
+  if (banner) banner.className = '';
+  if (synced > 0) toast(`✅ ${synced} score(s) synced to server.`);
+  if (failed > 0) toast(`⚠️ ${failed} score(s) failed to sync — will retry.`, 'warning');
+  // Refresh live views if supervisor/admin
+  if (userProfile?.role === 'supervisor') refreshSVDashboard();
+  if (userProfile?.role === 'superadmin') refreshSAOverview();
+}
+
+// ── Offline-aware write helper ──
+// Replaces direct Firebase update() for scores
+async function writeScore(facilityId, moduleId, itemNo, value) {
+  const path = `facilities/${facilityId}/scores/m${moduleId}`;
+  const data = { [dbKey(itemNo)]: value };
+  if (isOnline) {
+    try {
+      await update(ref(db, path), data);
+      return 'synced';
+    } catch(e) {
+      // Firebase write failed despite being "online" — queue it
+      await queueWrite(path, data);
+      return 'queued';
+    }
+  } else {
+    await queueWrite(path, data);
+    updateOfflineBanner();
+    return 'queued';
+  }
+}
+
+// ── Kick off initial sync check when app loads ──
+window.addEventListener('DOMContentLoaded', () => {
+  if (isOnline) {
+    // Sync any writes that were queued from a previous offline session
+    setTimeout(syncPendingWrites, 3000);
+  } else {
+    updateOfflineBanner();
+  }
+});
+
 </script>
+
+<div id="offlineBanner">
+  <span id="offlineBannerText">📵 You are OFFLINE — scores are being saved locally and will sync when connection is restored.</span>
+  <span id="pendingCount" style="margin-left:8px;font-weight:800"></span>
+</div>
 </body>
 </html>
