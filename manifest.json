@@ -1,0 +1,18 @@
+{
+  "name": "GHS Peer Review Assessment Platform",
+  "short_name": "GHS Peer Review",
+  "description": "Ghana Health Service Harmonized Peer Review Assessment Tool 2026",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#006633",
+  "theme_color": "#006633",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><circle cx='96' cy='96' r='96' fill='%23006633'/><rect x='84' y='32' width='24' height='128' fill='white'/><rect x='32' y='84' width='128' height='24' fill='white'/><circle cx='96' cy='96' r='26' fill='%23FFB800'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["health", "medical", "productivity"]
+}
