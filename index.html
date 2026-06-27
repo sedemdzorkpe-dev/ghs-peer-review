@@ -67,6 +67,98 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--light-gray
 /* ── FACILITY DROPDOWNS ── */
 .facility-select-group { display:flex; flex-direction:column; gap:10px; }
 
+
+/* ═══════════════════════════════════════════════════════════
+   YES/NO SMART SCORING SYSTEM
+═══════════════════════════════════════════════════════════ */
+.item-card {
+  background:white; border-radius:10px; margin-bottom:10px;
+  box-shadow:0 1px 5px rgba(0,0,0,0.08); overflow:hidden;
+  border-left:4px solid var(--border); transition:border-color 0.3s;
+}
+.item-card.answered-yes { border-left-color:var(--accent); }
+.item-card.answered-no  { border-left-color:var(--danger); }
+.item-card.full-score   { border-left-color:#27ae60; }
+.item-card.partial-score{ border-left-color:#f39c12; }
+.item-card.zero-score   { border-left-color:#e74c3c; }
+
+.item-main-row {
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  cursor:pointer; user-select:none;
+}
+.item-main-row:hover { background:#fafafa; }
+.item-badge {
+  background:var(--ghs-dark); color:var(--ghs-gold); border-radius:6px;
+  padding:3px 8px; font-size:0.72rem; font-weight:800; white-space:nowrap; flex-shrink:0;
+}
+.item-main-text { flex:1; }
+.item-main-text h4 { font-size:0.88rem; font-weight:700; color:#222; margin-bottom:2px; }
+.item-max-score { font-size:0.75rem; color:var(--gray); }
+.item-score-display {
+  min-width:70px; text-align:right; font-size:1rem;
+  font-weight:800; flex-shrink:0;
+}
+.item-score-display.s-full    { color:#27ae60; }
+.item-score-display.s-partial { color:#e67e22; }
+.item-score-display.s-zero    { color:#e74c3c; }
+.item-score-display.s-none    { color:#aaa; }
+
+/* Yes/No toggle */
+.yn-toggle {
+  display:flex; gap:6px; flex-shrink:0; margin-left:auto;
+}
+.yn-btn {
+  padding:5px 14px; border:2px solid var(--border); border-radius:20px;
+  font-size:0.82rem; font-weight:700; cursor:pointer; transition:all 0.15s;
+  background:white;
+}
+.yn-btn.yes { border-color:#27ae60; color:#27ae60; }
+.yn-btn.yes.active { background:#27ae60; color:white; }
+.yn-btn.no  { border-color:#e74c3c; color:#e74c3c; }
+.yn-btn.no.active  { background:#e74c3c; color:white; }
+
+/* Sub-questions panel */
+.subq-panel {
+  display:none; border-top:1px solid #f0f0f0;
+  padding:10px 14px 14px 36px; background:#fafafa;
+}
+.subq-panel.open { display:block; animation:fadeIn 0.2s ease; }
+.subq-row {
+  display:flex; align-items:center; gap:10px;
+  padding:7px 10px; border-radius:8px; margin-bottom:6px;
+  background:white; border:1px solid #eee;
+}
+.subq-row:last-child { margin-bottom:0; }
+.subq-text { flex:1; font-size:0.83rem; color:#444; }
+.subq-deduction { font-size:0.75rem; color:#e74c3c; font-weight:700; white-space:nowrap; }
+.subq-toggle { display:flex; gap:4px; }
+.sq-btn {
+  padding:3px 10px; border:1.5px solid var(--border); border-radius:14px;
+  font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.15s;
+  background:white;
+}
+.sq-btn.yes { border-color:#27ae60; color:#27ae60; }
+.sq-btn.yes.active { background:#27ae60; color:white; }
+.sq-btn.no  { border-color:#e74c3c; color:#e74c3c; }
+.sq-btn.no.active  { background:#e74c3c; color:white; }
+
+/* Section header score */
+.section-live-score {
+  display:inline-flex; align-items:center; gap:6px;
+  background:rgba(255,255,255,0.15); border-radius:12px;
+  padding:3px 10px; font-size:0.78rem; font-weight:700; color:#FFB800;
+}
+
+/* Module summary banner */
+.module-score-banner {
+  display:flex; align-items:center; justify-content:space-between;
+  background:rgba(255,255,255,0.1); border-radius:10px;
+  padding:12px 16px; margin-top:12px; flex-wrap:wrap; gap:10px;
+}
+.banner-item { text-align:center; }
+.banner-val { font-size:1.6rem; font-weight:900; }
+.banner-label { font-size:0.72rem; opacity:0.85; }
+
 /* ====== LOGIN PAGE ====== */
 #loginPage {
   min-height: 100vh;
@@ -537,25 +629,6 @@ tr:hover td { background: var(--light-gray); }
       <div class="form-group"><label>Email *</label><input id="regEmail" class="form-control" type="email" placeholder="user@ghs.gov.gh"/></div>
       <div class="form-group"><label>Phone Number</label><input id="regPhone" class="form-control" placeholder="+233 ..."/></div>
       <div class="form-group"><label>Password *</label><input id="regPass" class="form-control" type="password" placeholder="Min 6 characters"/></div>
-
-      <!-- Facility selection (shown for all roles) -->
-      <div class="form-group" id="reg-facility-section">
-        <label>Select Your Facility</label>
-        <div class="facility-select-group">
-          <select id="regRegion" class="form-control select-ctrl" onchange="onRegRegionChange()">
-            <option value="">— Select Region —</option>
-          </select>
-          <select id="regDistrict" class="form-control select-ctrl" onchange="onRegDistrictChange()" disabled>
-            <option value="">— Select District —</option>
-          </select>
-          <select id="regSubdistrict" class="form-control select-ctrl" onchange="onRegSubdistrictChange()" disabled>
-            <option value="">— Select Subdistrict —</option>
-          </select>
-          <select id="regFacility" class="form-control select-ctrl" disabled>
-            <option value="">— Select Facility —</option>
-          </select>
-        </div>
-      </div>
 
       <button class="btn btn-primary" onclick="doRegister()" style="margin-top:8px">📝 Submit Registration</button>
       <div id="regErr" class="err-msg"></div>
@@ -1778,24 +1851,25 @@ function buildAssessor() {
 function buildAssessorForm(moduleId) {
   const p = getPage(`as-form-${moduleId}`);
   const mod = MODULES[moduleId];
-  
+
   p.innerHTML = `
     <div class="module-header">
       <h2>${mod.icon} Module ${moduleId}: ${mod.name}</h2>
-      <div class="meta">Enter scores for each item below. Click section headers to expand/collapse.</div>
-      <div class="progress-summary" id="as-prog-summary-${moduleId}">
-        <div class="prog-item"><div class="prog-val" id="as-total-score-${moduleId}">0</div><div>Points Obtained</div></div>
-        <div class="prog-item"><div class="prog-val">${mod.maxScore}</div><div>Max Points</div></div>
-        <div class="prog-item"><div class="prog-val" id="as-pct-score-${moduleId}">0%</div><div>Percentage</div></div>
-        <div class="prog-item"><div class="prog-val" id="as-items-done-${moduleId}">0</div><div>Items Scored</div></div>
+      <div class="meta">Answer Yes/No for each item. Sub-questions appear automatically on Yes. Deductions apply on No.</div>
+      <div class="module-score-banner" id="as-banner-${moduleId}">
+        <div class="banner-item"><div class="banner-val" id="as-total-score-${moduleId}">0</div><div class="banner-label">Points Obtained</div></div>
+        <div class="banner-item"><div class="banner-val">${mod.maxScore}</div><div class="banner-label">Max Points</div></div>
+        <div class="banner-item"><div class="banner-val" id="as-pct-score-${moduleId}">0%</div><div class="banner-label">Score %</div></div>
+        <div class="banner-item"><div class="banner-val" id="as-items-done-${moduleId}">0/${mod.sections.flatMap(s=>s.items).length}</div><div class="banner-label">Items Done</div></div>
       </div>
     </div>
-    <div id="as-sections-${moduleId}"></div>
-    <div style="text-align:center;padding:16px">
-      <button class="btn btn-primary" style="min-width:200px" onclick="submitAllScores(${moduleId})">💾 Save All Scores</button>
+    <div id="as-sections-${moduleId}" style="padding:16px"></div>
+    <div style="text-align:center;padding:16px 16px 30px">
+      <button class="btn btn-primary" style="min-width:220px;padding:13px 28px" onclick="submitAllScores(${moduleId})">
+        💾 Save All Scores to Server
+      </button>
     </div>`;
 
-  // Load existing scores
   get(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`)).then(snap=>{
     const existing = snap.val()||{};
     renderAssessorSections(moduleId, existing);
@@ -1804,79 +1878,90 @@ function buildAssessorForm(moduleId) {
 
 
 
-window.onScoreInput = function(el, itemNo, maxScore, moduleId) {
-  const v = parseFloat(el.value);
-  if(isNaN(v)||v<0){ el.classList.remove('filled','over'); return; }
-  if(v>maxScore){ el.classList.add('over'); el.classList.remove('filled'); }
-  else { el.classList.remove('over'); el.classList.add('filled'); }
+
+// ── autoSaveScore: saves current Yes/No computed value ──
+window.autoSaveScore = async function(itemNo, maxScore, moduleId) {
+  const safeKey = `m${moduleId}_${itemNo.replace(/\./g,'_')}`;
+  const yBtn = document.getElementById(`yn_yes_${safeKey}`);
+  const nBtn = document.getElementById(`yn_no_${safeKey}`);
+  if (!yBtn) return;
+  let scoreVal = null;
+  if (yBtn.classList.contains('active')) scoreVal = computeItemScoreFromSubqs(safeKey, maxScore);
+  else if (nBtn?.classList.contains('active')) scoreVal = 0;
+  if (scoreVal === null) return;
+  const result = await writeScore(activeFacilityId, moduleId, itemNo, scoreVal);
+  if (result === 'queued') toast(`📵 Offline — "${itemNo}" saved locally`, 'warning');
   updateSummary(moduleId);
 };
 
-window.autoSaveScore = async function(itemNo, maxScore, moduleId) {
-  const inp = document.getElementById(`inp_m${moduleId}_${itemNo.replace(/\./g,'_')}`);
-  if(!inp) return;
-  const v = parseFloat(inp.value);
-  if(isNaN(v)||v<0||v>maxScore) return;
-  await update(ref(db,`facilities/${activeFacilityId}/scores/m${moduleId}`),{[dbKey(itemNo)]:v});
-  toast(`✅ Saved: ${itemNo} = ${v}`);
-};
+window.onScoreInput = function() {}; // replaced by Yes/No system
 
 window.submitAllScores = async function(moduleId) {
   const mod = MODULES[moduleId];
-  const data = {};
-  let hasError = false;
-  mod.sections.forEach(sec=>sec.items.forEach(it=>{
-    const inp = document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
-    if(inp&&inp.value!==''){
-      const v = parseFloat(inp.value);
-      if(!isNaN(v)&&v>=0&&v<=it.score) data[dbKey(it.no)]=v;
-      else hasError=true;
-    }
+  const data = {}; let unanswered = 0;
+  mod.sections.forEach(sec => sec.items.forEach(it => {
+    const safeKey = `m${moduleId}_${it.no.replace(/\./g,'_')}`;
+    const yBtn = document.getElementById(`yn_yes_${safeKey}`);
+    const nBtn = document.getElementById(`yn_no_${safeKey}`);
+    if (!yBtn) return;
+    if (yBtn.classList.contains('active')) data[dbKey(it.no)] = computeItemScoreFromSubqs(safeKey, it.score);
+    else if (nBtn?.classList.contains('active')) data[dbKey(it.no)] = 0;
+    else unanswered++;
   }));
-  if(hasError){ toast('Some scores exceed the maximum. Fix them first.','error'); return; }
+  if (Object.keys(data).length === 0) { toast('Answer at least one item before saving.','warning'); return; }
   const path = `facilities/${activeFacilityId}/scores/m${moduleId}`;
-  if(isOnline) {
+  if (isOnline) {
     try {
       await update(ref(db, path), data);
-      // Un-mark all pending inputs for this module
-      mod.sections.forEach(sec=>sec.items.forEach(it=>{
-        const inp = document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
-        if(inp) inp.classList.remove('pending');
-      }));
-      toast(`✅ Module ${moduleId} scores submitted to server!`);
+      toast(`✅ Module ${moduleId} saved!${unanswered > 0 ? ' ' + unanswered + ' items unanswered.' : ''}`);
     } catch(e) {
       await queueWrite(path, data);
-      toast(`📵 Offline — Module ${moduleId} scores saved locally. Will sync when online.`, 'warning');
+      toast(`📵 Offline — Module ${moduleId} queued for sync.`,'warning');
     }
   } else {
     await queueWrite(path, data);
-    // Mark all inputs as pending
-    mod.sections.forEach(sec=>sec.items.forEach(it=>{
-      const inp = document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
-      if(inp&&inp.value!=='') inp.classList.add('pending');
-    }));
-    toast(`📵 Offline — Module ${moduleId} scores saved locally. Will sync when online.`, 'warning');
+    toast(`📵 Offline — Module ${moduleId} saved locally.`,'warning');
     updateOfflineBanner();
   }
 };
 
 function updateSummary(moduleId) {
   const mod = MODULES[moduleId];
-  let total=0, itemsDone=0;
-  mod.sections.forEach(sec=>sec.items.forEach(it=>{
-    const inp=document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
-    if(inp&&inp.value!==''){
-      const v=parseFloat(inp.value);
-      if(!isNaN(v)&&v>=0){ total+=v; itemsDone++; }
-    }
+  let total = 0, itemsDone = 0, totalItems = 0;
+  mod.sections.forEach(sec => sec.items.forEach(it => {
+    totalItems++;
+    const safeKey = `m${moduleId}_${it.no.replace(/\./g,'_')}`;
+    const yBtn = document.getElementById(`yn_yes_${safeKey}`);
+    const nBtn = document.getElementById(`yn_no_${safeKey}`);
+    if (!yBtn) return;
+    if (yBtn.classList.contains('active')) { total += computeItemScoreFromSubqs(safeKey, it.score); itemsDone++; }
+    else if (nBtn?.classList.contains('active')) { itemsDone++; }
   }));
-  const el_t=document.getElementById(`as-total-score-${moduleId}`);
-  const el_p=document.getElementById(`as-pct-score-${moduleId}`);
-  const el_i=document.getElementById(`as-items-done-${moduleId}`);
-  if(el_t) el_t.textContent=total.toFixed(1);
-  if(el_p) el_p.textContent=Math.round(total/mod.maxScore*100)+'%';
-  if(el_i) el_i.textContent=itemsDone;
+  const el_t = document.getElementById(`as-total-score-${moduleId}`);
+  const el_p = document.getElementById(`as-pct-score-${moduleId}`);
+  const el_i = document.getElementById(`as-items-done-${moduleId}`);
+  if(el_t) el_t.textContent = total.toFixed(1);
+  if(el_p) el_p.textContent = Math.round(total / mod.maxScore * 100) + '%';
+  if(el_i) el_i.textContent = `${itemsDone}/${totalItems}`;
+  updateSectionScores(moduleId);
 }
+
+function updateSectionScores(moduleId) {
+  const mod = MODULES[moduleId];
+  mod.sections.forEach((sec, si) => {
+    let secTotal = 0, secMax = 0;
+    sec.items.forEach(it => {
+      secMax += it.score;
+      const safeKey = `m${moduleId}_${it.no.replace(/\./g,'_')}`;
+      const yBtn = document.getElementById(`yn_yes_${safeKey}`);
+      if (yBtn?.classList.contains('active')) secTotal += computeItemScoreFromSubqs(safeKey, it.score);
+    });
+    const badge = document.getElementById(`sec_badge_${moduleId}_${si}`);
+    const pct = secMax ? Math.round(secTotal / secMax * 100) : 0;
+    if (badge) badge.textContent = `${secTotal.toFixed(1)} / ${secMax} pts (${pct}%)`;
+  });
+}
+function updateSectionScore(moduleId) { updateSectionScores(moduleId); }
 
 function buildAssessorSummary(moduleId) {
   const p = getPage('as-summary');
@@ -2386,71 +2471,172 @@ window.autoSaveScore = async function(itemNo, maxScore, moduleId) {
   updateSectionScore(moduleId);
 };
 
-function updateSectionScore(moduleId) {
-  const mod = MODULES[moduleId];
-  if(!mod) return;
-  mod.sections.forEach((sec,si)=>{
-    let secTotal=0, secMax=0;
-    sec.items.forEach(it=>{
-      const inp=document.getElementById(`inp_m${moduleId}_${it.no.replace(/\./g,'_')}`);
-      secMax+=it.score;
-      if(inp&&inp.value!==''){const v=parseFloat(inp.value);if(!isNaN(v)&&v>=0) secTotal+=v;}
-    });
-    const pct=Math.round(secTotal/secMax*100);
-    const badge=document.getElementById(`sec_badge_${moduleId}_${si}`);
-    if(badge) badge.textContent=`${secTotal.toFixed(1)}/${secMax} (${pct}%)`;
+// updateSectionScore alias (legacy compat — real impl in updateSectionScores)
+// updateSectionScore alias defined above
+
+// ── FULL Yes/No Scoring Engine ──
+function parseCriteria(criteria, maxScore) {
+  const subqs = [];
+  if (!criteria) return subqs;
+  criteria.split(/;/).map(c=>c.trim()).filter(Boolean).forEach(clause => {
+    const dedMatch = clause.match(/[−\-–]([\d.]+)/);
+    if (!dedMatch) return;
+    const deduction = parseFloat(dedMatch[1]);
+    if (!deduction || deduction <= 0 || deduction > maxScore) return;
+    let text = clause
+      .replace(/[−\-–][\d.]+[^\s,]*/g,'')
+      .replace(/\s*each\s*/gi,'').replace(/\s*per\s+\w+\s*/gi,' ')
+      .replace(/\s*\/\w+\s*/g,' ').replace(/\s+/g,' ').trim();
+    if (!text || text.length < 3) return;
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    subqs.push({ text, deduction });
   });
-  updateSummary(moduleId);
+  return subqs;
 }
 
-// ── Improved section rendering with score badge in title ──
+function computeItemScoreFromSubqs(safeKey, maxScore) {
+  let score = maxScore;
+  document.querySelectorAll(`.subq-no-btn[data-key="${safeKey}"]`).forEach(btn => {
+    if (btn.classList.contains('active')) score = Math.max(0, score - parseFloat(btn.dataset.deduction||0));
+  });
+  return Math.round(score * 10) / 10;
+}
+
+function updateItemScoreDisplay(safeKey, score, maxScore) {
+  const disp = document.getElementById(`score_${safeKey}`);
+  const card = document.getElementById(`card_${safeKey}`);
+  if (!disp) return;
+  const pct = maxScore > 0 ? score / maxScore * 100 : 0;
+  const cls = pct >= 70 ? 's-full' : pct > 0 ? 's-partial' : 's-zero';
+  const cardCls = pct >= 70 ? 'full-score' : pct > 0 ? 'partial-score' : 'zero-score';
+  disp.className = `item-score-display ${cls}`;
+  disp.innerHTML = `${score}<span style="font-size:0.65rem;font-weight:400"> /${maxScore}</span>`;
+  if (card) card.className = card.className.replace(/full-score|partial-score|zero-score/g,'').trim() + ` ${cardCls}`;
+}
+
+window.toggleSubPanel = function(safeKey) {
+  const p = document.getElementById(`subp_${safeKey}`); if(p) p.classList.toggle('open');
+};
+
+window.onMainYes = function(safeKey, itemNo, maxScore, moduleId, hasSubqs) {
+  document.getElementById(`yn_yes_${safeKey}`)?.classList.add('active');
+  document.getElementById(`yn_no_${safeKey}`)?.classList.remove('active');
+  const card = document.getElementById(`card_${safeKey}`);
+  if (card) card.classList.add('answered-yes');
+  if (hasSubqs) document.getElementById(`subp_${safeKey}`)?.classList.add('open');
+  const score = hasSubqs ? computeItemScoreFromSubqs(safeKey, maxScore) : maxScore;
+  updateItemScoreDisplay(safeKey, score, maxScore);
+  autoSaveScore(itemNo, maxScore, moduleId);
+};
+
+window.onMainNo = function(safeKey, itemNo, maxScore, moduleId) {
+  document.getElementById(`yn_no_${safeKey}`)?.classList.add('active');
+  document.getElementById(`yn_yes_${safeKey}`)?.classList.remove('active');
+  const card = document.getElementById(`card_${safeKey}`);
+  if (card) card.className = card.className.replace(/full-score|partial-score|zero-score|answered-yes/g,'').trim() + ' zero-score answered-no';
+  document.getElementById(`subp_${safeKey}`)?.classList.remove('open');
+  updateItemScoreDisplay(safeKey, 0, maxScore);
+  autoSaveScore(itemNo, maxScore, moduleId);
+};
+
+window.onSubYes = function(safeKey, qi, itemNo, maxScore, moduleId) {
+  document.getElementById(`sqyes_${safeKey}_${qi}`)?.classList.add('active');
+  document.getElementById(`sqno_${safeKey}_${qi}`)?.classList.remove('active');
+  const score = computeItemScoreFromSubqs(safeKey, maxScore);
+  updateItemScoreDisplay(safeKey, score, maxScore);
+  autoSaveScore(itemNo, maxScore, moduleId);
+};
+
+window.onSubNo = function(safeKey, qi, itemNo, maxScore, moduleId) {
+  document.getElementById(`sqno_${safeKey}_${qi}`)?.classList.add('active');
+  document.getElementById(`sqyes_${safeKey}_${qi}`)?.classList.remove('active');
+  const score = computeItemScoreFromSubqs(safeKey, maxScore);
+  updateItemScoreDisplay(safeKey, score, maxScore);
+  autoSaveScore(itemNo, maxScore, moduleId);
+};
+
 function renderAssessorSections(moduleId, existing) {
   const mod = MODULES[moduleId];
   const container = document.getElementById(`as-sections-${moduleId}`);
-  if(!container) return;
-  container.innerHTML = mod.sections.map((sec,si)=>{
-    const secMax = sec.items.reduce((s,it)=>s+it.score,0);
-    const secCurrent = sec.items.reduce((s,it)=>s+(existing[dbKey(it.no)]||0),0);
-    const secPct = Math.round(secCurrent/secMax*100);
-    return `<div class="section-block">
-      <div class="section-title" onclick="toggleSection('sec${moduleId}_${si}')">
-        <span>${sec.title}</span>
-        <div style="display:flex;align-items:center;gap:10px">
-          <span class="section-score" id="sec_badge_${moduleId}_${si}">${secCurrent.toFixed(1)}/${secMax} (${secPct}%)</span>
-          <span id="arr_sec${moduleId}_${si}">▼</span>
-        </div>
-      </div>
-      <div class="section-body open" id="sec${moduleId}_${si}">
-        ${sec.items.map(it=>{
-          const safeNo = `m${moduleId}_${it.no.replace(/\./g,'_')}`;
-          const val = existing[dbKey(it.no)]??'';
-          const pct = typeof existing[dbKey(it.no)]==='number'?(existing[dbKey(it.no)]/it.score*100):null;
-          let cls = '';
-          if(pct!==null){ cls = pct>=70?'s-excellent':pct>=40?'s-good':'s-poor'; }
-          const rowCls = pct!==null?(pct>=50?'completed':'needs-attention'):'';
-          return `<div class="item-row ${rowCls}" id="row_${safeNo}">
-            <div><span class="item-no">${it.no}</span></div>
-            <div class="item-info">
+  if (!container) return;
+
+  container.innerHTML = mod.sections.map((sec, si) => {
+    const secMax = sec.items.reduce((s,it)=>s+it.score, 0);
+    const secCurrent = sec.items.reduce((s,it)=>s+(existing[dbKey(it.no)]||0), 0);
+    const secPct = secMax ? Math.round(secCurrent/secMax*100) : 0;
+
+    const itemsHtml = sec.items.map(it => {
+      const safeKey = `m${moduleId}_${it.no.replace(/\./g,'_')}`;
+      const savedScore = existing[dbKey(it.no)];
+      const hasSaved = savedScore != null;
+      const mainYes = hasSaved && savedScore > 0;
+      const mainNo  = hasSaved && savedScore === 0;
+      const subqs = parseCriteria(it.criteria, it.score);
+      const scorePct = hasSaved ? (savedScore / it.score * 100) : null;
+      const scoreClass = scorePct === null ? 's-none' : scorePct >= 70 ? 's-full' : scorePct > 0 ? 's-partial' : 's-zero';
+      const cardClass = scorePct === null ? '' : scorePct >= 70 ? 'full-score' : scorePct > 0 ? 'partial-score' : 'zero-score';
+
+      const subqHtml = subqs.map((sq, qi) => `
+        <div class="subq-row">
+          <span class="subq-text">${sq.text}</span>
+          <span class="subq-deduction">−${sq.deduction} pts</span>
+          <div class="subq-toggle">
+            <button class="sq-btn yes" id="sqyes_${safeKey}_${qi}"
+              onclick="onSubYes('${safeKey}',${qi},'${it.no}',${it.score},${moduleId})">✓ OK</button>
+            <button class="sq-btn no subq-no-btn" id="sqno_${safeKey}_${qi}"
+              data-key="${safeKey}" data-deduction="${sq.deduction}"
+              onclick="onSubNo('${safeKey}',${qi},'${it.no}',${it.score},${moduleId})">✗ Fail</button>
+          </div>
+        </div>`).join('');
+
+      return `
+        <div class="item-card ${cardClass}" id="card_${safeKey}">
+          <div class="item-main-row" onclick="toggleSubPanel('${safeKey}')">
+            <span class="item-badge">${it.no}</span>
+            <div class="item-main-text">
               <h4>${it.item}</h4>
-              <p>${it.criteria}</p>
+              <span class="item-max-score">Max: ${it.score} pts</span>
             </div>
-            <div class="item-scoring">
-              <div class="expected-score">Max: <b>${it.score}</b></div>
-              <input type="number" class="score-input ${cls}"
-                id="inp_${safeNo}"
-                value="${val}"
-                min="0" max="${it.score}" step="0.5"
-                placeholder="0–${it.score}"
-                oninput="onScoreInput(this,'${it.no}',${it.score},${moduleId})"
-                onchange="autoSaveScore('${it.no}',${it.score},${moduleId})"/>
+            <div class="yn-toggle" onclick="event.stopPropagation()">
+              <button class="yn-btn yes ${mainYes?'active':''}" id="yn_yes_${safeKey}"
+                onclick="onMainYes('${safeKey}','${it.no}',${it.score},${moduleId},${subqs.length>0})">✓ Yes</button>
+              <button class="yn-btn no ${mainNo?'active':''}" id="yn_no_${safeKey}"
+                onclick="onMainNo('${safeKey}','${it.no}',${it.score},${moduleId})">✗ No</button>
             </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`;
+            <div class="item-score-display ${scoreClass}" id="score_${safeKey}">
+              ${hasSaved ? savedScore : '–'}<span style="font-size:0.65rem;font-weight:400"> /${it.score}</span>
+            </div>
+          </div>
+          ${subqs.length > 0 ? `
+          <div class="subq-panel ${mainYes?'open':''}" id="subp_${safeKey}">
+            <div style="font-size:0.75rem;color:var(--gray);margin-bottom:10px;padding:6px 8px;background:#f0f4f0;border-radius:6px;font-style:italic">
+              📋 Sub-criteria: mark each one as OK (no deduction) or Fail (deduction applied)
+            </div>
+            ${subqHtml}
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="section-block" style="margin-bottom:12px;border-radius:10px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.08)">
+        <div class="section-title" onclick="toggleSection('sec${moduleId}_${si}')">
+          <span>${sec.title}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="section-live-score" id="sec_badge_${moduleId}_${si}">
+              ${secCurrent.toFixed(1)} / ${secMax} pts (${secPct}%)
+            </span>
+            <span id="arr_sec${moduleId}_${si}">▼</span>
+          </div>
+        </div>
+        <div class="section-body open" id="sec${moduleId}_${si}" style="padding:12px">
+          ${itemsHtml}
+        </div>
+      </div>`;
   }).join('');
+
   updateSummary(moduleId);
 }
+
 
 // ── Enhanced Facility Detail Modal with print ──
 window.openFacilityDetail = function(fid) {
@@ -2793,15 +2979,7 @@ window.selectRegRole = function(role) {
   document.getElementById('role-card-' + role)?.classList.add('selected');
 };
 
-// ── Populate Region Dropdown on page load ──
-window.addEventListener('DOMContentLoaded', () => {
-  const regSel = document.getElementById('regRegion');
-  if (regSel && typeof FACILITY_DB !== 'undefined') {
-    Object.keys(FACILITY_DB).sort().forEach(r => {
-      regSel.insertAdjacentHTML('beforeend', `<option value="${r}">${r}</option>`);
-    });
-  }
-});
+// Region dropdowns are populated dynamically when facility selector pages are built
 
 window.onRegRegionChange = function() {
   const region = document.getElementById('regRegion').value;
@@ -2860,34 +3038,18 @@ window.doRegister = async function() {
   if (!name || !email || !pass) { errEl.textContent = 'Name, email and password are required.'; return; }
   if (pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
 
-  // Get selected facility info
-  const fSel = document.getElementById('regFacility');
-  const facilityCode = fSel?.value || '';
-  const facilityName = fSel?.options[fSel.selectedIndex]?.dataset?.name || '';
-  const facilityType = fSel?.options[fSel.selectedIndex]?.dataset?.type || '';
-  const region = document.getElementById('regRegion')?.value || '';
-  const district = document.getElementById('regDistrict')?.value || '';
-  const subdistrict = document.getElementById('regSubdistrict')?.value || '';
-
   const btn = document.querySelector('#section-register .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Registering...'; }
 
   try {
     const uid = await createAuthUserViaREST(email, pass);
-    // Map role: Director → supervisor role pending admin approval
     const dbRole = selectedRegRole === 'director' ? 'supervisor' : selectedRegRole;
     await set(ref(db, `users/${uid}`), {
       name, email, phone: phone || null, password: pass,
       role: dbRole,
       requestedRole: selectedRegRole,
-      status: 'pending', // admin must approve
-      facilityCode: facilityCode || null,
-      facilityName: facilityName || null,
-      facilityType: facilityType || null,
-      facilityRegion: region || null,
-      facilityDistrict: district || null,
-      facilitySubdistrict: subdistrict || null,
-      facilityId: null, // set by admin on approval
+      status: 'pending',
+      facilityId: null,
       moduleAssigned: [],
       createdAt: Date.now()
     });
@@ -3175,30 +3337,146 @@ function buildDirector() {
 
 // ── Supervisor views: facilities + leaderboard + reports ──
 function buildSupervisorLimited() {
-  const fid = userProfile.facilityId;
-  activeFacilityId = fid || null;
+  activeFacilityId = userProfile.facilityId || null;
+
+  // Show facility selector first, then facility-specific tabs
   const tabs = [
-    {id:'sv-scorecard',   label:'🏆 Scorecard'},
-    {id:'sv-modules',     label:'📋 All Modules'},
-    {id:'sv-leaderboard', label:'🏅 Leaderboard'},
-    {id:'sv-reports',     label:'📊 Reports'},
-    {id:'sv-assessors',   label:'👥 Assessors'}
+    {id:'sv-select-facility', label:'🏥 Select Facility'},
+    {id:'sv-scorecard',       label:'🏆 Scorecard'},
+    {id:'sv-modules',         label:'📋 All Modules'},
+    {id:'sv-leaderboard',     label:'🏅 Leaderboard'},
+    {id:'sv-reports',         label:'📊 Reports'},
+    {id:'sv-assessors',       label:'👥 Assessors'}
   ];
-  renderTabs(tabs,'sv-scorecard');
+  renderTabs(tabs, 'sv-select-facility');
+  renderPage('sv-select-facility', buildSVFacilitySelector);
   renderPage('sv-scorecard', buildSVScorecard);
   renderPage('sv-modules', buildSVModules);
   renderPage('sv-leaderboard', buildSVLeaderboard);
   renderPage('sv-reports', buildSVReportsPage);
   renderPage('sv-assessors', buildSVAssessors);
 
-  if (fid) {
-    get(ref(db,`facilities/${fid}`)).then(snap=>{
+  // If already has a facility, load it straight away
+  if (activeFacilityId) {
+    get(ref(db,`facilities/${activeFacilityId}`)).then(snap=>{
       const fac=snap.val();
       if(fac) document.getElementById('topFacilityName').textContent=fac.name;
     });
   }
   setupLiveListeners();
 }
+
+// Supervisor facility selector (same cascading UI as assessor)
+function buildSVFacilitySelector() {
+  const p = getPage('sv-select-facility');
+  p.innerHTML = `
+    <div style="max-width:600px;margin:40px auto">
+      <div class="card">
+        <div class="card-header"><span class="card-title">🏥 Select Facility to Supervise</span></div>
+        <p class="text-muted text-sm mb-16">Choose the facility you are overseeing for this peer review session. You can switch facilities anytime from this tab.</p>
+        <div class="facility-select-group" style="gap:12px">
+          <div class="form-group"><label>Region</label>
+            <select id="svFacRegion" class="form-control select-ctrl" onchange="onSVFacRegionChange()">
+              <option value="">— Select Region —</option>
+            </select>
+          </div>
+          <div class="form-group"><label>District</label>
+            <select id="svFacDistrict" class="form-control select-ctrl" onchange="onSVFacDistrictChange()" disabled>
+              <option value="">— Select District —</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Subdistrict</label>
+            <select id="svFacSubdistrict" class="form-control select-ctrl" onchange="onSVFacSubdistrictChange()" disabled>
+              <option value="">— Select Subdistrict —</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Facility Name</label>
+            <select id="svFacFacility" class="form-control select-ctrl" disabled>
+              <option value="">— Select Facility —</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:20px;text-align:center">
+          <button class="btn btn-primary" style="min-width:220px" onclick="confirmSVFacility()">✅ Confirm Facility</button>
+        </div>
+        <div id="svFacErr" class="err-msg" style="text-align:center;margin-top:10px"></div>
+      </div>
+    </div>`;
+
+  const rSel = document.getElementById('svFacRegion');
+  Object.keys(FACILITY_DB).sort().forEach(r => {
+    rSel.insertAdjacentHTML('beforeend', `<option value="${r}">${r}</option>`);
+  });
+}
+
+window.onSVFacRegionChange = function() {
+  const r = document.getElementById('svFacRegion').value;
+  const d = document.getElementById('svFacDistrict');
+  const s = document.getElementById('svFacSubdistrict');
+  const f = document.getElementById('svFacFacility');
+  d.innerHTML = '<option value="">— Select District —</option>';
+  s.innerHTML = '<option value="">— Select Subdistrict —</option>';
+  f.innerHTML = '<option value="">— Select Facility —</option>';
+  d.disabled = !r; s.disabled = true; f.disabled = true;
+  if (!r) return;
+  Object.keys(FACILITY_DB[r]).sort().forEach(dd => d.insertAdjacentHTML('beforeend', `<option value="${dd}">${dd}</option>`));
+};
+window.onSVFacDistrictChange = function() {
+  const r = document.getElementById('svFacRegion').value;
+  const d = document.getElementById('svFacDistrict').value;
+  const s = document.getElementById('svFacSubdistrict');
+  const f = document.getElementById('svFacFacility');
+  s.innerHTML = '<option value="">— Select Subdistrict —</option>';
+  f.innerHTML = '<option value="">— Select Facility —</option>';
+  s.disabled = !d; f.disabled = true;
+  if (!d) return;
+  Object.keys(FACILITY_DB[r]?.[d]||{}).sort().forEach(ss => s.insertAdjacentHTML('beforeend', `<option value="${ss}">${ss}</option>`));
+};
+window.onSVFacSubdistrictChange = function() {
+  const r = document.getElementById('svFacRegion').value;
+  const d = document.getElementById('svFacDistrict').value;
+  const s = document.getElementById('svFacSubdistrict').value;
+  const f = document.getElementById('svFacFacility');
+  f.innerHTML = '<option value="">— Select Facility —</option>';
+  f.disabled = !s;
+  if (!s) return;
+  (FACILITY_DB[r]?.[d]?.[s]||[]).sort((a,b)=>a.n.localeCompare(b.n)).forEach(fac =>
+    f.insertAdjacentHTML('beforeend', `<option value="${fac.c}" data-name="${fac.n}" data-type="${fac.t}" data-region="${r}" data-district="${d}">${fac.n} (${fac.t})</option>`)
+  );
+};
+window.confirmSVFacility = async function() {
+  const fSel = document.getElementById('svFacFacility');
+  const errEl = document.getElementById('svFacErr');
+  if (!fSel.value) { errEl.textContent = 'Please select a facility.'; return; }
+  const opt = fSel.options[fSel.selectedIndex];
+  const facilityCode = fSel.value;
+  const facilityName = opt.dataset.name;
+  const region = opt.dataset.region;
+  const district = opt.dataset.district;
+  const type = opt.dataset.type;
+
+  const facSnap = await get(ref(db,'facilities'));
+  const facs = facSnap.val() || {};
+  let facId = Object.entries(facs).find(([,f])=>f.code===facilityCode)?.[0];
+  if (!facId) {
+    facId = 'fac_' + facilityCode;
+    await set(ref(db,`facilities/${facId}`), {
+      name: facilityName, code: facilityCode, type,
+      location: district, region,
+      assessmentDate: new Date().toISOString().split('T')[0],
+      createdAt: Date.now(), scores: {}
+    });
+  }
+  activeFacilityId = facId;
+  document.getElementById('topFacilityName').textContent = facilityName;
+  toast(`✅ Facility set: ${facilityName}`);
+  switchTab('sv-scorecard');
+  // Force rebuild of loaded pages with new facility
+  ['sv-scorecard','sv-modules','sv-reports'].forEach(id=>{
+    const el=document.getElementById(id); if(el) { el.dataset.built=''; el.innerHTML=''; }
+  });
+  buildSVScorecard(); buildSVModules();
+};
 
 function buildSVLeaderboard() {
   const p = getPage('sv-leaderboard');
