@@ -573,6 +573,44 @@ tr:hover td { background: var(--light-gray); }
 </head>
 <body>
 
+<!-- Synchronous stubs — these run immediately when the page loads,
+     before the ES module finishes parsing, so onclick handlers never
+     get "not defined". The module overwrites them with real implementations. -->
+<script>
+function switchLoginTab(tab) {
+  document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.reg-section').forEach(s => s.classList.remove('active'));
+  var tabEl = document.getElementById('tab-' + tab);
+  var secEl = document.getElementById('section-' + tab);
+  if (tabEl) tabEl.classList.add('active');
+  if (secEl) secEl.classList.add('active');
+}
+
+var selectedRegRole = '';
+function selectRegRole(role) {
+  selectedRegRole = role;
+  document.querySelectorAll('.role-select-card').forEach(function(c) { c.classList.remove('selected'); });
+  var card = document.getElementById('role-card-' + role);
+  if (card) card.classList.add('selected');
+}
+
+// These are async and depend on Firebase — show a loading message until the
+// module is ready, then the module replaces them with the real versions.
+function doLogin() {
+  var errEl = document.getElementById('loginErr');
+  if (errEl) errEl.textContent = 'Loading… please wait a moment and try again.';
+}
+function doRegister() {
+  var errEl = document.getElementById('regErr');
+  if (errEl) errEl.textContent = 'Loading… please wait a moment and try again.';
+}
+function doLogout() {}
+
+function onRegRegionChange() {}
+function onRegDistrictChange() {}
+function onRegSubdistrictChange() {}
+</script>
+
 <!-- ====== LOGIN PAGE ====== -->
 <div id="loginPage">
   <div class="login-card">
