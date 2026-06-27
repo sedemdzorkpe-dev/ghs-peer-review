@@ -725,7 +725,24 @@ async function createAuthUserViaREST(email, password) {
     if(msg.includes('INVALID_EMAIL')) throw new Error('Invalid email address.');
     throw new Error(msg);
   }
-  return data.localId; // this is the UID
+  // Return both uid and idToken so we can write to DB via REST without SDK sign-in
+  return { uid: data.localId, idToken: data.idToken };
+}
+
+// Write a user profile via Firebase REST API using an idToken
+// This avoids the SDK's onAuthStateChanged firing during registration
+async function writeUserProfileViaREST(uid, profile, idToken) {
+  const url = `${FIREBASE_CONFIG.databaseURL}/users/${uid}.json?auth=${idToken}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err?.error || 'Failed to save profile to database.');
+  }
+  return res.json();
 }
 
 
@@ -1113,6 +1130,12 @@ onAuthStateChanged(auth, async user => {
       toast('Account not configured. Contact admin.','error');
       await signOut(auth); return;
     }
+    // Pending users: show message and sign them out — they must wait for approval
+    if(userProfile.status === 'pending') {
+      document.getElementById('loginErr').textContent =
+        `⏳ Your account is pending approval by an administrator. Please try again after you have been notified.`;
+      await signOut(auth); return;
+    }
     document.getElementById('loginPage').style.display = 'none';
     document.getElementById('appShell').style.display = 'flex';
     buildApp();
@@ -1130,17 +1153,10 @@ onAuthStateChanged(auth, async user => {
 // ══════════════════════════════════════════════════════════════
 function buildApp() {
   const role = userProfile.role;
-  const status = userProfile.status;
   document.getElementById('topUserName').textContent = `👤 ${userProfile.name || 'User'}`;
   const rb = document.getElementById('topRoleBadge');
   rb.textContent = role.toUpperCase();
   rb.className = `role-badge role-${role}`;
-
-  // Block pending users from accessing the app
-  if (status === 'pending') {
-    showError('⏳ Your account is pending approval by an administrator. Please check back soon.');
-    return;
-  }
 
   if(role === 'superadmin') buildSuperAdmin();
   else if(role === 'director') buildDirector();
@@ -1521,11 +1537,12 @@ window.createUser = async function() {
   const btn = document.querySelector('#modalContent .btn-primary');
   if(btn){ btn.disabled=true; btn.textContent='Creating account...'; }
   try {
-    const uid = await createAuthUserViaREST(email, pass);
+    const { uid } = await createAuthUserViaREST(email, pass);
     await set(ref(db,`users/${uid}`), {
       name, email, password: pass, role,
       moduleAssigned: role==='assessor' ? moduleAssigned : null,
       facilityId: facilityId||null,
+      status: 'active',
       createdAt: Date.now()
     });
     toast(`✅ ${name}'s account created and ready to use! They can log in immediately with ${email}.`);
@@ -1761,11 +1778,12 @@ window.saveSVUser = async function() {
   const btn = document.querySelector('#modalContent .btn-primary');
   if(btn){ btn.disabled=true; btn.textContent='Creating account...'; }
   try {
-    const uid = await createAuthUserViaREST(email, pass);
+    const { uid } = await createAuthUserViaREST(email, pass);
     await set(ref(db,`users/${uid}`), {
       name, email, password: pass, role,
       moduleAssigned: role==='assessor' ? moduleAssigned : null,
       facilityId: activeFacilityId,
+      status: 'active',
       createdAt: Date.now()
     });
     toast(`✅ ${name}'s account is ready! They can log in immediately with ${email}.`);
@@ -3045,9 +3063,13 @@ window.doRegister = async function() {
   if (btn) { btn.disabled = true; btn.textContent = 'Registering...'; }
 
   try {
-    const uid = await createAuthUserViaREST(email, pass);
+    // Step 1: Create the Firebase Auth account via REST (does NOT sign in via SDK)
+    const { uid, idToken } = await createAuthUserViaREST(email, pass);
+
+    // Step 2: Write profile to database via REST using the new user's idToken
+    // This completely bypasses the SDK so onAuthStateChanged never fires
     const dbRole = selectedRegRole === 'director' ? 'supervisor' : selectedRegRole;
-    await set(ref(db, `users/${uid}`), {
+    await writeUserProfileViaREST(uid, {
       name, email, phone: phone || null, password: pass,
       role: dbRole,
       requestedRole: selectedRegRole,
@@ -3055,13 +3077,20 @@ window.doRegister = async function() {
       facilityId: null,
       moduleAssigned: [],
       createdAt: Date.now()
-    });
+    }, idToken);
+
+    // Step 3: Sign out the newly created account from the REST session
+    // (The SDK was never signed in, so nothing to do — just show success)
     successEl.style.display = 'block';
     successEl.textContent = `✅ Registration submitted! Your account (${email}) is pending approval by an administrator. You will be notified when activated.`;
+
     // Clear form
-    ['regName','regEmail','regPhone','regPass'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+    ['regName','regEmail','regPhone','regPass'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value='';
+    });
     selectedRegRole = '';
     document.querySelectorAll('.role-select-card').forEach(c => c.classList.remove('selected'));
+
   } catch(e) {
     errEl.textContent = e.message;
   } finally {
